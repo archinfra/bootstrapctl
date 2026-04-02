@@ -2,107 +2,63 @@ package exporter
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/yuanyp8/bootstrapctl/internal/config"
 )
 
-// RenderInventoryShell 把 inventory 渲染成可被 shell source 的数组文件。
-// 这层主要服务于仍处于 Shell 时代的辅助脚本，例如 LVM、巡检或迁移脚本。
+const (
+	defaultMountDir  = "/data"
+	defaultGraphBase = "/data/graphroot"
+)
+
+// RenderInventoryShell 把 inventory 渲染成旧版 ops-environment.sh 兼容格式。
+// 这里故意只保留旧脚本真正依赖的核心变量，方便 LVM 和历史脚本直接 source。
 func RenderInventoryShell(inventory config.Inventory) string {
 	nodes := inventory.ResolveNodes()
-	builder := &strings.Builder{}
-
-	fmt.Fprintln(builder, "#!/usr/bin/env bash")
-	fmt.Fprintln(builder, "# bootstrapctl inventory-export --format shell")
-	fmt.Fprintf(builder, "CLUSTER_NAME=%s\n", shellQuote(inventory.ClusterName))
-	fmt.Fprintf(builder, "NODE_COUNT=%d\n", len(nodes))
 
 	nodeNames := make([]string, 0, len(nodes))
 	nodeIPs := make([]string, 0, len(nodes))
-	nodeHostIPs := make([]string, 0, len(nodes))
-	nodeRoles := make([]string, 0, len(nodes))
-	nodeUsers := make([]string, 0, len(nodes))
-	nodePorts := make([]string, 0, len(nodes))
-	nodePasswords := make([]string, 0, len(nodes))
-	nodePrivateKeys := make([]string, 0, len(nodes))
-	nodeUseSudo := make([]string, 0, len(nodes))
-	bastionHosts := make([]string, 0, len(nodes))
-	bastionUsers := make([]string, 0, len(nodes))
-	bastionPorts := make([]string, 0, len(nodes))
-	bastionPasswords := make([]string, 0, len(nodes))
-	bastionPrivateKeys := make([]string, 0, len(nodes))
-
 	for _, node := range nodes {
 		nodeNames = append(nodeNames, node.Name)
 		nodeIPs = append(nodeIPs, node.IP)
-		nodeHostIP := strings.TrimSpace(node.HostIP)
-		if nodeHostIP == "" {
-			nodeHostIP = node.IP
-		}
-		nodeHostIPs = append(nodeHostIPs, nodeHostIP)
-		nodeRoles = append(nodeRoles, strings.Join(sortedCopy(node.Roles), ","))
-		nodeUsers = append(nodeUsers, node.SSHUser)
-		nodePorts = append(nodePorts, fmt.Sprintf("%d", node.SSHPort))
-		nodePasswords = append(nodePasswords, node.SSHPassword)
-		nodePrivateKeys = append(nodePrivateKeys, node.SSHPrivateKey)
-		nodeUseSudo = append(nodeUseSudo, fmt.Sprintf("%t", node.UseSudo))
-
-		if node.Bastion != nil {
-			bastionHosts = append(bastionHosts, node.Bastion.Host)
-			bastionUsers = append(bastionUsers, node.Bastion.SSHUser)
-			bastionPorts = append(bastionPorts, fmt.Sprintf("%d", node.Bastion.SSHPort))
-			bastionPasswords = append(bastionPasswords, node.Bastion.SSHPassword)
-			bastionPrivateKeys = append(bastionPrivateKeys, node.Bastion.SSHPrivateKey)
-		} else {
-			bastionHosts = append(bastionHosts, "")
-			bastionUsers = append(bastionUsers, "")
-			bastionPorts = append(bastionPorts, "")
-			bastionPasswords = append(bastionPasswords, "")
-			bastionPrivateKeys = append(bastionPrivateKeys, "")
-		}
 	}
 
-	writeShellArray(builder, "NODE_NAMES", nodeNames)
-	writeShellArray(builder, "NODE_IPS", nodeIPs)
-	writeShellArray(builder, "NODE_HOST_IPS", nodeHostIPs)
-	writeShellArray(builder, "NODE_ROLES", nodeRoles)
-	writeShellArray(builder, "NODE_SSH_USERS", nodeUsers)
-	writeShellArray(builder, "NODE_SSH_PORTS", nodePorts)
-	writeShellArray(builder, "NODE_SSH_PASSWORDS", nodePasswords)
-	writeShellArray(builder, "NODE_SSH_PRIVATE_KEYS", nodePrivateKeys)
-	writeShellArray(builder, "NODE_USE_SUDO", nodeUseSudo)
-	writeShellArray(builder, "NODE_BASTION_HOSTS", bastionHosts)
-	writeShellArray(builder, "NODE_BASTION_USERS", bastionUsers)
-	writeShellArray(builder, "NODE_BASTION_PORTS", bastionPorts)
-	writeShellArray(builder, "NODE_BASTION_PASSWORDS", bastionPasswords)
-	writeShellArray(builder, "NODE_BASTION_PRIVATE_KEYS", bastionPrivateKeys)
-
+	builder := &strings.Builder{}
+	fmt.Fprintln(builder, "#!/bin/bash")
+	fmt.Fprintln(builder)
+	fmt.Fprintln(builder, "# 由 bootstrapctl 自动生成。")
+	fmt.Fprintln(builder, "# 如需更新，请重新执行 scan / plan / apply / verify 或 export-ops-env。")
+	fmt.Fprintln(builder, "# 建议放置路径：/etc/profile.d/ops-environment.sh")
+	fmt.Fprintln(builder)
+	fmt.Fprintln(builder, "# 集群各机器 IP 数组")
+	fmt.Fprintf(builder, "export NODE_IPS=(%s)\n", joinShellValues(nodeIPs))
+	fmt.Fprintln(builder)
+	fmt.Fprintln(builder, "# 集群各 IP 对应的主机名数组")
+	fmt.Fprintf(builder, "export NODE_NAMES=(%s)\n", joinShellValues(nodeNames))
+	fmt.Fprintln(builder)
+	fmt.Fprintf(builder, "export MOUNT_DIR=%s\n", shellValue(defaultMountDir))
+	fmt.Fprintf(builder, "export GRAPH_BASE=%s\n", shellValue(defaultGraphBase))
 	return builder.String()
 }
 
-func writeShellArray(builder *strings.Builder, key string, values []string) {
-	builder.WriteString(key)
-	builder.WriteString("=(")
-	for idx, value := range values {
-		if idx > 0 {
-			builder.WriteByte(' ')
-		}
-		builder.WriteString(shellQuote(value))
+func joinShellValues(values []string) string {
+	if len(values) == 0 {
+		return ""
 	}
-	builder.WriteString(")\n")
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, shellValue(value))
+	}
+	return strings.Join(result, " ")
 }
 
-func shellQuote(value string) string {
+func shellValue(value string) string {
 	if value == "" {
 		return "''"
 	}
-	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
-}
-
-func sortedCopy(values []string) []string {
-	result := append([]string(nil), values...)
-	sort.Strings(result)
-	return result
+	if strings.ContainsAny(value, " \t'\"") {
+		return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+	}
+	return value
 }

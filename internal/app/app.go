@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -314,19 +315,25 @@ func runScan(console *ui.Console, args []string) int {
 }
 
 func syncOpsEnvCompat(console *ui.Console, inventoryPath string, inventory config.Inventory) {
-	outputPath := defaultOpsEnvPath(inventoryPath)
-	changed, err := writeOpsEnvCompatFile(outputPath, inventory)
-	if err != nil {
-		console.Warn("同步 ops-environment.sh 失败: %v", err)
-		return
-	}
+	for idx, outputPath := range defaultOpsEnvPaths(inventoryPath) {
+		changed, err := writeOpsEnvCompatFile(outputPath, inventory)
+		if err != nil {
+			if idx < len(defaultOpsEnvPaths(inventoryPath))-1 {
+				console.Warn("写入 %s 失败，改为回退到下一位置: %v", outputPath, err)
+				continue
+			}
+			console.Warn("同步 ops-environment.sh 失败: %v", err)
+			return
+		}
 
-	console.Item("ops-env", outputPath)
-	if changed {
-		console.Info("已根据当前 inventory 同步 ops-environment.sh")
+		console.Item("ops-env", outputPath)
+		if changed {
+			console.Info("已根据当前 inventory 同步 ops-environment.sh")
+		} else {
+			console.Info("ops-environment.sh 已是最新状态")
+		}
 		return
 	}
-	console.Info("ops-environment.sh 已是最新状态")
 }
 
 func writeOpsEnvCompatFile(outputPath string, inventory config.Inventory) (bool, error) {
@@ -351,7 +358,18 @@ func writeOpsEnvCompatFile(outputPath string, inventory config.Inventory) (bool,
 }
 
 func defaultOpsEnvPath(inventoryPath string) string {
-	return filepath.Join(filepath.Dir(inventoryPath), "ops-environment.sh")
+	return defaultOpsEnvPaths(inventoryPath)[0]
+}
+
+func defaultOpsEnvPaths(inventoryPath string) []string {
+	paths := make([]string, 0, 2)
+	if runtime.GOOS != "windows" {
+		if info, err := os.Stat("/etc/profile.d"); err == nil && info.IsDir() {
+			paths = append(paths, "/etc/profile.d/ops-environment.sh")
+		}
+	}
+	paths = append(paths, filepath.Join(filepath.Dir(inventoryPath), "ops-environment.sh"))
+	return paths
 }
 
 func parseLifecycleFlags(console *ui.Console, command string, args []string) (lifecycleOptions, bool) {

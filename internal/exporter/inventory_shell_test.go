@@ -12,28 +12,20 @@ func TestRenderInventoryShell(t *testing.T) {
 		ClusterName: "demo-env",
 		Nodes: []config.Node{
 			{
-				Name:        "master-01",
-				IP:          "36.137.200.29",
-				HostIP:      "192.168.24.5",
-				Roles:       []string{"master", "etcd"},
-				SSHUser:     "root",
-				SSHPort:     22,
-				UseSudo:     boolPtr(false),
-				SSHPassword: "secret",
+				Name:    "sichuan-master1",
+				IP:      "10.120.103.6",
+				Roles:   []string{"master"},
+				SSHUser: "root",
+				SSHPort: 22,
+				UseSudo: boolPtr(false),
 			},
 			{
-				Name:          "node-01",
-				IP:            "192.168.24.4",
-				Roles:         []string{"worker"},
-				SSHUser:       "ops",
-				SSHPort:       2222,
-				SSHPrivateKey: "~/.ssh/id_ed25519",
-				UseSudo:       boolPtr(true),
-				Bastion: &config.Bastion{
-					Host:    "36.137.200.29",
-					SSHUser: "root",
-					SSHPort: 22,
-				},
+				Name:    "sichuan-node1",
+				IP:      "10.120.103.7",
+				Roles:   []string{"worker"},
+				SSHUser: "root",
+				SSHPort: 22,
+				UseSudo: boolPtr(false),
 			},
 		},
 	}
@@ -41,22 +33,17 @@ func TestRenderInventoryShell(t *testing.T) {
 
 	content := RenderInventoryShell(inventory)
 
-	assertContains(t, content, "CLUSTER_NAME='demo-env'")
-	assertContains(t, content, "NODE_COUNT=2")
-	assertContains(t, content, "NODE_NAMES=('master-01' 'node-01')")
-	assertContains(t, content, "NODE_HOST_IPS=('192.168.24.5' '192.168.24.4')")
-	assertContains(t, content, "NODE_SSH_USERS=('root' 'ops')")
-	assertContains(t, content, "NODE_SSH_PORTS=('22' '2222')")
-	assertContains(t, content, "NODE_USE_SUDO=('false' 'true')")
-	assertContains(t, content, "NODE_BASTION_HOSTS=('' '36.137.200.29')")
-	assertContains(t, content, "NODE_ROLES=('etcd,master' 'worker')")
-	assertContains(t, content, "NODE_SSH_PASSWORDS=('secret' '')")
+	assertContains(t, content, "#!/bin/bash")
+	assertContains(t, content, "export NODE_IPS=(10.120.103.6 10.120.103.7)")
+	assertContains(t, content, "export NODE_NAMES=(sichuan-master1 sichuan-node1)")
+	assertContains(t, content, "export MOUNT_DIR=/data")
+	assertContains(t, content, "export GRAPH_BASE=/data/graphroot")
 }
 
-func TestShellQuoteEscapesSingleQuote(t *testing.T) {
-	content := shellQuote(`ops'env`)
-	if content != `'ops'\''env'` {
-		t.Fatalf("unexpected quote result: %s", content)
+func TestShellValueQuotesWhitespace(t *testing.T) {
+	got := shellValue("node 01")
+	if got != "'node 01'" {
+		t.Fatalf("unexpected shell value: %s", got)
 	}
 }
 
