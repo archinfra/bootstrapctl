@@ -11,9 +11,12 @@ features:
   ssh_connectivity: true
 
   # 是否为“当前执行机”分发 SSH 公钥到目标节点。
-  # 开启后会补齐两类链路：
+  # 这里只负责：
   # 1. 控制端 -> 目标节点
-  # 2. 如节点配置了 bastion，则补齐 bastion -> 内网节点
+  #
+  # 注意：
+  # - bastion -> 内网节点 这条链路，已经独立由 enable_bastion_hop 控制
+  # - 所以即使这里关闭，像 master1 -> node1 这种主节点到私网节点的免密仍可单独生效
   ssh_authorized_key: false
 
   # 是否启用“受控运维账号”能力。
@@ -68,6 +71,8 @@ ssh_key:
   generated_key_path: ~/.ssh/bootstrapctl_ed25519
 
   # 是否补齐 bastion -> 内网目标节点 的免密链路。
+  # 这更接近“主节点/跳板机 到 私网节点”的互信配置，
+  # 与“控制端是否免密登录所有节点”不是一回事。
   enable_bastion_hop: true
 
   # bastion 上专用 key 的路径。

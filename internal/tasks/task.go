@@ -77,21 +77,25 @@ func Build(inventory config.Inventory, profile config.Profile) []Task {
 				})
 				controllerKeyTargets[nodeIdentityKey(node)] = struct{}{}
 			}
-			if node.Bastion != nil && strings.TrimSpace(node.Bastion.Host) != "" && profile.SSHKey.EnableBastionHopEnabled() {
-				taskList = append(taskList, &SSHBastionHopKeyTask{
-					TargetNodeSpec:  node,
-					BastionNodeSpec: bastionConnectionForNode(node),
-					AuthorizedUser:  resolveAuthorizedUser(profile.SSHKey.AuthorizedUser, node.SSHUser),
-					BastionKeyPath:  profile.SSHKey.BastionKeyPath,
+		}
+		// bastion -> target 的二跳免密与客户端 SSH config，
+		// 语义上属于“节点间互信链路”，不应该被“控制端公钥分发”总开关绑死。
+		// 这样像 master1 -> node1 这类真实集群节点场景，即使不要求控制端免密，
+		// 仍然可以独立收敛跳板机到私网节点的登录体验。
+		if node.Bastion != nil && strings.TrimSpace(node.Bastion.Host) != "" && profile.SSHKey.EnableBastionHopEnabled() {
+			taskList = append(taskList, &SSHBastionHopKeyTask{
+				TargetNodeSpec:  node,
+				BastionNodeSpec: bastionConnectionForNode(node),
+				AuthorizedUser:  resolveAuthorizedUser(profile.SSHKey.AuthorizedUser, node.SSHUser),
+				BastionKeyPath:  profile.SSHKey.BastionKeyPath,
+			})
+			if profile.SSHKey.ManageBastionSSHConfigEnabled() {
+				taskList = append(taskList, &SSHBastionClientConfigTask{
+					TargetNodeSpec:       node,
+					BastionNodeSpec:      bastionConnectionForNode(node),
+					BastionKeyPath:       profile.SSHKey.BastionKeyPath,
+					BastionSSHConfigPath: profile.SSHKey.BastionSSHConfigPath,
 				})
-				if profile.SSHKey.ManageBastionSSHConfigEnabled() {
-					taskList = append(taskList, &SSHBastionClientConfigTask{
-						TargetNodeSpec:       node,
-						BastionNodeSpec:      bastionConnectionForNode(node),
-						BastionKeyPath:       profile.SSHKey.BastionKeyPath,
-						BastionSSHConfigPath: profile.SSHKey.BastionSSHConfigPath,
-					})
-				}
 			}
 		}
 		if profile.Features.ManagedAdminEnabled() {
