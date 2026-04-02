@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/yuanyp8/bootstrapctl/internal/config"
+	"github.com/yuanyp8/bootstrapctl/internal/exporter"
 	"github.com/yuanyp8/bootstrapctl/internal/remote"
 	"github.com/yuanyp8/bootstrapctl/internal/report"
 	"github.com/yuanyp8/bootstrapctl/internal/runner"
@@ -18,7 +20,7 @@ import (
 	"github.com/yuanyp8/bootstrapctl/internal/ui"
 )
 
-// version 默认值会在本地开发时使用；正式构建时可通过 -ldflags 注入。
+// version 会在本地开发时使用；正式构建时可通过 -ldflags 注入。
 var version = "0.6.0"
 
 type lifecycleOptions struct {
@@ -44,6 +46,11 @@ type initOptions struct {
 	Force       bool
 }
 
+type exportOpsEnvOptions struct {
+	InventoryPath string
+	OutputPath    string
+}
+
 // Run 是 bootstrapctl CLI 的统一入口。
 func Run(args []string) int {
 	console := ui.NewConsole()
@@ -55,6 +62,8 @@ func Run(args []string) int {
 	switch args[0] {
 	case "init":
 		return runInit(console, args[1:])
+	case "export-ops-env":
+		return runExportOpsEnv(console, args[1:])
 	case "plan":
 		return runLifecycle(console, tasks.ModePlan, args[1:])
 	case "apply":
@@ -94,16 +103,18 @@ func runInit(console *ui.Console, args []string) int {
 		return 1
 	}
 
+	opsEnvPath := defaultOpsEnvPath(result.InventoryPath)
+
 	console.Banner("bootstrapctl 项目模板已生成")
 	console.Section("模板文件")
 	console.Item("inventory", result.InventoryPath)
 	console.Item("profile", result.ProfilePath)
 
 	console.Section("模板特点")
-	console.Item("连接模型", "inventory 负责描述节点、SSH 与跳板机")
-	console.Item("初始化策略", "profile 负责描述 swap、SELinux、iptables、graphroot、ulimit 等目标状态")
+	console.Item("连接模型", "inventory 负责描述节点、SSH 与跳板机，profile 负责描述目标收敛状态")
 	console.Item("防火墙策略", "默认停用 firewalld/ufw，并以 iptables 作为最终规则入口")
 	console.Item("SSH 免密", "可选开启控制端公钥分发，以及跳板机到内网节点的免密链路")
+	console.Item("LVM 兼容", "ops-environment.sh 会在 scan/plan/apply/verify 时按最新 inventory 自动同步")
 
 	console.Section("建议的下一步")
 	console.Command("bootstrapctl scan -i " + quoteIfNeeded(result.InventoryPath))
@@ -111,7 +122,51 @@ func runInit(console *ui.Console, args []string) int {
 	console.Command("bootstrapctl apply -i " + quoteIfNeeded(result.InventoryPath) + " -p " + quoteIfNeeded(result.ProfilePath))
 	console.Command("bootstrapctl verify -i " + quoteIfNeeded(result.InventoryPath) + " -p " + quoteIfNeeded(result.ProfilePath))
 
+	console.Section("ops-env 兼容文件")
+	console.Item("默认行为", "init 只生成模板；scan/plan/apply/verify 会自动在 inventory 同目录同步 ops-environment.sh")
+	console.Item("自动输出", opsEnvPath)
+	console.Item("手工导出", "如需单独刷新，也可以执行下面这条命令")
+	console.Command("bootstrapctl export-ops-env -i " + quoteIfNeeded(result.InventoryPath) + " -o " + quoteIfNeeded(opsEnvPath))
+
 	console.Success("现在先补齐 inventory 的节点与认证信息，再按 scan -> plan -> apply -> verify 的顺序执行即可。")
+	return 0
+}
+
+func runExportOpsEnv(console *ui.Console, args []string) int {
+	options, ok := parseExportOpsEnvFlags(console, args)
+	if !ok {
+		return 1
+	}
+
+	inventory, err := config.LoadInventory(options.InventoryPath)
+	if err != nil {
+		console.Error("%v", err)
+		return 1
+	}
+
+	content := exporter.RenderInventoryShell(inventory)
+	if strings.TrimSpace(options.OutputPath) == "" {
+		console.Plain("%s", content)
+		return 0
+	}
+
+	changed, err := writeOpsEnvCompatFile(options.OutputPath, inventory)
+	if err != nil {
+		console.Error("写出 ops-env 兼容文件失败: %v", err)
+		return 1
+	}
+
+	console.Banner("bootstrapctl EXPORT-OPS-ENV")
+	console.Section("输出结果")
+	console.Item("inventory", options.InventoryPath)
+	console.Item("cluster", inventory.ClusterName)
+	console.Item("output", options.OutputPath)
+	console.Item("node-count", len(inventory.Nodes))
+	if changed {
+		console.Success("已导出为兼容 02-lvm 的 ops-environment.sh 格式")
+	} else {
+		console.Success("ops-environment.sh 已是最新内容，无需重复写入")
+	}
 	return 0
 }
 
@@ -145,6 +200,7 @@ func runLifecycle(console *ui.Console, mode tasks.Mode, args []string) int {
 
 	taskList := tasks.Build(inventory, profile)
 	console.Item("任务数", len(taskList))
+	syncOpsEnvCompat(console, options.InventoryPath, inventory)
 
 	rep := report.New(string(mode), inventory.ClusterName, options.DryRun)
 	engine := &runner.Engine{
@@ -194,6 +250,7 @@ func runScan(console *ui.Console, args []string) int {
 	console.Item("环境", inventory.ClusterName)
 	console.Item("节点数", len(inventory.Nodes))
 	console.Item("超时", options.Timeout)
+	syncOpsEnvCompat(console, options.InventoryPath, inventory)
 
 	scanRunner := scan.NewRunner(remote.NewSSHExecutor(options.Timeout))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(len(inventory.Nodes)+1)*options.Timeout)
@@ -254,6 +311,47 @@ func runScan(console *ui.Console, args []string) int {
 
 	console.Success("基线扫描完成")
 	return 0
+}
+
+func syncOpsEnvCompat(console *ui.Console, inventoryPath string, inventory config.Inventory) {
+	outputPath := defaultOpsEnvPath(inventoryPath)
+	changed, err := writeOpsEnvCompatFile(outputPath, inventory)
+	if err != nil {
+		console.Warn("同步 ops-environment.sh 失败: %v", err)
+		return
+	}
+
+	console.Item("ops-env", outputPath)
+	if changed {
+		console.Info("已根据当前 inventory 同步 ops-environment.sh")
+		return
+	}
+	console.Info("ops-environment.sh 已是最新状态")
+}
+
+func writeOpsEnvCompatFile(outputPath string, inventory config.Inventory) (bool, error) {
+	content := exporter.RenderInventoryShell(inventory)
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return false, err
+	}
+
+	existing, err := os.ReadFile(outputPath)
+	if err == nil && string(existing) == content {
+		return false, nil
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+
+	if err := os.WriteFile(outputPath, []byte(content), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func defaultOpsEnvPath(inventoryPath string) string {
+	return filepath.Join(filepath.Dir(inventoryPath), "ops-environment.sh")
 }
 
 func parseLifecycleFlags(console *ui.Console, command string, args []string) (lifecycleOptions, bool) {
@@ -356,11 +454,33 @@ func parseInitFlags(console *ui.Console, args []string) (initOptions, bool) {
 	return options, true
 }
 
+func parseExportOpsEnvFlags(console *ui.Console, args []string) (exportOpsEnvOptions, bool) {
+	var options exportOpsEnvOptions
+	fs := flag.NewFlagSet("export-ops-env", flag.ContinueOnError)
+	fs.SetOutput(os.Stdout)
+
+	fs.StringVar(&options.InventoryPath, "inventory", "", "inventory YAML 文件路径")
+	fs.StringVar(&options.InventoryPath, "inv", "", "inventory YAML 文件路径（缩写）")
+	fs.StringVar(&options.InventoryPath, "i", "", "inventory YAML 文件路径（短参数）")
+	fs.StringVar(&options.OutputPath, "output", "", "输出的 ops-environment.sh 路径，留空表示输出到 stdout")
+	fs.StringVar(&options.OutputPath, "o", "", "输出的 ops-environment.sh 路径（短参数）")
+
+	if err := fs.Parse(args); err != nil {
+		return options, false
+	}
+	if options.InventoryPath == "" {
+		console.Error("必须通过 --inventory / --inv / -i 指定 inventory 文件")
+		return options, false
+	}
+	return options, true
+}
+
 func printUsage(console *ui.Console) {
-	console.Plain(`bootstrapctl - 面向离线/半离线环境的企业级主机初始化工具
+	console.Plain(`bootstrapctl - 面向离线、半离线和受限网络环境的企业级主机初始化工具
 
 用法:
   bootstrapctl init    [-d .] [-c demo]
+  bootstrapctl export-ops-env -i ./inventory.yaml [-o ./ops-environment.sh]
   bootstrapctl scan    -i ./inventory.yaml [-p ./profile.yaml]
   bootstrapctl plan    -i ./inventory.yaml -p ./profile.yaml
   bootstrapctl apply   -i ./inventory.yaml -p ./profile.yaml
@@ -375,10 +495,12 @@ func printUsage(console *ui.Console) {
   -d                init 输出目录
   -c                init 默认环境名称
   -f                init 覆盖已有模板
+  -o                export-ops-env 输出文件
 
 当前支持的初始化能力:
   - SSH 连通性检查
   - 控制端 SSH 公钥分发
+  - 当前执行节点本机 ~/.ssh/config 自动维护
   - 跳板机到内网节点免密
   - 主机名设置
   - /etc/hosts 受控区块

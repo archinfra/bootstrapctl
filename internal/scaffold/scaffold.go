@@ -23,6 +23,8 @@ type InitResult struct {
 }
 
 // WriteTemplates 根据用户指定目录生成 inventory/profile 模板。
+// 这里刻意只生成“可编辑模板”，不直接导出 ops-environment.sh，
+// 因为用户此时通常还没把真实节点和认证信息补齐。
 func WriteTemplates(options InitOptions) (InitResult, error) {
 	inventoryPath := filepath.Join(options.Dir, options.Inventory)
 	profilePath := filepath.Join(options.Dir, options.Profile)
@@ -40,7 +42,8 @@ func WriteTemplates(options InitOptions) (InitResult, error) {
 		}
 	}
 
-	if err := os.WriteFile(inventoryPath, []byte(renderInventory(options.ClusterName)), 0o644); err != nil {
+	inventoryContent := renderInventory(options.ClusterName)
+	if err := os.WriteFile(inventoryPath, []byte(inventoryContent), 0o644); err != nil {
 		return InitResult{}, fmt.Errorf("写入 inventory 模板失败: %w", err)
 	}
 	if err := os.WriteFile(profilePath, []byte(renderProfile()), 0o644); err != nil {
@@ -126,7 +129,7 @@ nodes:
     # 节点级跳板机。
     # 如果你只想让某台节点单独走跳板机，可以在这里覆盖。
     #
-    # 只填写 host 也可以，其余认证参数会按以下顺序自动继承：
+    # 只填 host 也可以，其余认证参数会按以下顺序自动继承：
     # 1. transport.bastion.*
     # 2. transport.*
     bastion:
@@ -168,8 +171,8 @@ features:
   # 一般保持开启，便于在 plan/apply 前先发现连通性问题。
   ssh_connectivity: true
 
-  # 是否为“当前执行机”分发 SSH 公钥到目标节点。
-  # 这里只负责：
+  # 是否把“当前执行机”的 SSH 公钥分发到目标节点。
+  # 这里仅负责：
   # 1. 控制端 -> 目标节点
   #
   # 注意：

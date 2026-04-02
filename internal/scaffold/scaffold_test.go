@@ -53,6 +53,9 @@ func TestWriteTemplates(t *testing.T) {
 	if strings.Contains(profileText, "ulimit: true") {
 		t.Fatalf("profile template should not expose ulimit enable switch by default, got %s", profileText)
 	}
+	if result.InventoryPath == "" || result.ProfilePath == "" {
+		t.Fatalf("expected result paths to be populated, got %#v", result)
+	}
 }
 
 func TestWriteTemplatesRejectsExistingFilesWithoutForce(t *testing.T) {

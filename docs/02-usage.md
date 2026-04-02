@@ -4,16 +4,17 @@
 
 开始前建议确认：
 
-- 控制端能访问目标节点或跳板机
+- 控制端能够访问目标节点或跳板机
 - 目标节点已开启 SSH
-- 你已准备好密码或私钥
-- 如果走普通 sudo 用户模式，该用户具备 `sudo -n` 能力
+- 你已经准备好密码或私钥
+- 如果走普通 `sudo` 用户模式，该用户具备 `sudo -n` 能力
 
 ## 命令总览
 
 当前命令如下：
 
 - `init`
+- `export-ops-env`
 - `scan`
 - `plan`
 - `apply`
@@ -22,10 +23,10 @@
 
 常用短参数：
 
-- `-i`：`--inventory`
-- `-p`：`--profile`
-- `-t`：`--timeout`
-- `-r`：`--report-dir`
+- `-i` / `--inventory`
+- `-p` / `--profile`
+- `-t` / `--timeout`
+- `-r` / `--report-dir`
 
 `init` 的常用短参数：
 
@@ -41,7 +42,7 @@
 go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
 ```
 
-`init` 生成的是“完整体模板”，不是简化版占位文件：
+`init` 生成的是完整体模板，不是简化版占位文件：
 
 - `inventory.yaml` 会包含连接方式、`host_ip`、跳板机覆盖等详细注释
 - `profile.yaml` 会包含 SSH 公钥、managed admin、防火墙、内核网络、存储、ulimit 等完整字段说明
@@ -49,7 +50,7 @@ go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
 
 ### 2. 填写 inventory
 
-单机最小示例：
+单机最小示例如下：
 
 ```yaml
 cluster_name: demo-env
@@ -70,7 +71,7 @@ nodes:
 
 推荐优先使用 `init` 生成出来的 `profile.yaml`。
 
-如果需要查看“完整字段总览”或做交叉对照，再看：
+如果需要查看完整字段总览或做交叉对照，再看：
 
 - [../examples/profile.full.yaml](../examples/profile.full.yaml)
 - [../examples/profile-k8s-host-init.yaml](../examples/profile-k8s-host-init.yaml)
@@ -80,12 +81,6 @@ nodes:
 ```bash
 go run ./cmd/bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
 ```
-
-说明：
-
-- `scan` 当前只读取 `inventory`
-- 如果你为了保持命令格式统一，写成 `scan -i inventory.yaml -p profile.yaml` 也可以
-- 其中 `-p / --profile` 在扫描阶段只做兼容接收，不参与扫描判断
 
 ### 5. 再规划
 
@@ -105,9 +100,20 @@ go run ./cmd/bootstrapctl apply -i ./demo-init/inventory.yaml -p ./demo-init/pro
 go run ./cmd/bootstrapctl verify -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
 ```
 
+## ops-environment.sh 自动同步规则
+
+从当前版本开始，推荐把 `ops-environment.sh` 当成 `inventory.yaml` 的兼容派生产物来理解：
+
+- `init` 只生成模板，不直接生成 `ops-environment.sh`
+- `scan`、`plan`、`apply`、`verify` 会自动在 `inventory.yaml` 同目录下同步一份 `ops-environment.sh`
+- 如果 `inventory` 没有变化，再次执行这些命令时会识别为“已是最新状态”，不会重复改写
+- `export-ops-env` 仍然可用，但主要用于手工刷新或单独桥接旧脚本
+
+这样用户只需要维护真实的 `inventory.yaml`，旧的 LVM 或巡检脚本继续消费 `ops-environment.sh` 即可。
+
 ## 典型场景
 
-## 场景一：单机直连初始化
+### 场景一：单机直连初始化
 
 适合公网节点、实验环境或小规模主机。
 
@@ -117,7 +123,7 @@ go run ./cmd/bootstrapctl verify -i ./demo-init/inventory.yaml -p ./demo-init/pr
 - `nodes` 里只写一台机器即可
 - `cluster_name` 只是环境标签，单机照样能用
 
-## 场景二：通过跳板机访问内网节点
+### 场景二：通过跳板机访问内网节点
 
 当目标节点没有公网 IP 时，在 `transport.bastion` 或节点级 `bastion` 中配置跳板机。
 
@@ -148,16 +154,20 @@ nodes:
 
 - `ip` 是连接入口
 - `host_ip` 是主机真正用于互联的 IP
-- 节点级 `bastion` 只写了 `host` 时，其余认证信息会自动继承
+- 节点级 `bastion` 只写 `host` 时，其余认证信息会自动继承
 
-## 场景三：分发控制端公钥
+### 场景三：分发控制端公钥
 
 如果希望当前执行机后续能免密登录目标节点，可以打开：
 
 ```yaml
 features:
   ssh_authorized_key: true
+```
 
+并配置：
+
+```yaml
 ssh_key:
   authorized_user: root
   public_key_path: ~/.ssh/id_ed25519.pub
@@ -171,13 +181,7 @@ ssh_key:
   public_key: ssh-ed25519 AAAA... bootstrapctl@example
 ```
 
-当前版本还支持自动生成控制端专用 key。
-
-如果你开启了 `ssh_authorized_key`，并且没有显式提供 `public_key` 或现成的 `public_key_path`，默认会优先维护：
-
-- `~/.ssh/bootstrapctl_ed25519`
-
-也可以显式指定：
+如果未显式提供控制端公钥，当前版本也支持自动生成控制端专用 key，例如：
 
 ```yaml
 ssh_key:
@@ -186,17 +190,15 @@ ssh_key:
   generated_key_path: ~/.ssh/bootstrapctl_ed25519
 ```
 
-如果节点声明了 `bastion`，并且 `enable_bastion_hop: true`，工具会继续补齐：
+如果节点声明了 `bastion`，并且开启了 bastion hop，工具还会继续补齐：
 
 - 跳板机 -> 目标节点 的免密链路
 
-## 场景四：先 root 接入，再切普通 sudo 用户
+### 场景四：先用 root 接入，再切换普通 sudo 用户
 
 这是更推荐的企业路径。
 
-### 第一步：创建受控运维账号
-
-使用：
+第一步先创建受控运维账号，可参考：
 
 - [../examples/profile.managed-admin.yaml](../examples/profile.managed-admin.yaml)
 
@@ -221,9 +223,7 @@ managed_admin:
 go run ./cmd/bootstrapctl apply -i ./inventory.root.yaml -p ./profile.managed-admin.yaml -t 20s
 ```
 
-### 第二步：切换 inventory 到普通用户
-
-示例：
+第二步把 inventory 切换为普通用户，例如：
 
 ```yaml
 transport:
@@ -232,15 +232,13 @@ transport:
   use_sudo: true
 ```
 
-然后再用普通账号执行完整 profile：
+再用普通账号执行完整 profile：
 
 ```bash
 go run ./cmd/bootstrapctl plan -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
 go run ./cmd/bootstrapctl apply -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
 go run ./cmd/bootstrapctl verify -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
 ```
-
-截至 `2026-04-02`，这条路径已经在 4 台真实机器上验证通过。
 
 ## profile 关键策略说明
 

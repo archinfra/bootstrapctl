@@ -7,6 +7,7 @@
 当前版本已经提供四类核心能力：
 
 - 项目模板初始化：`init`
+- 兼容旧脚本的 inventory 导出：`export-ops-env`
 - 基线扫描：`scan`
 - 初始化规划与执行：`plan / apply / verify`
 - 受控运维账号引导：`managed_admin`
@@ -93,6 +94,38 @@ go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
 ```bash
 go run ./cmd/bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
 ```
+
+### 2.1 如果旧脚本还依赖 ops-env，可在补齐 inventory 后导出兼容文件
+
+`bootstrapctl init` 现在只生成：
+
+- `inventory.yaml`
+- `profile.yaml`
+
+不会默认直接生成 `ops-environment.sh`。原因是用户在 `init` 阶段通常还没有把真实节点、认证信息和跳板机链路补齐；如果这时直接导出，会更像一份带占位值的假配置。
+
+更合理的顺序是：
+
+1. 先 `init`
+2. 填写 `inventory.yaml`
+3. 再执行 `export-ops-env`
+
+当你需要兼容旧 Shell 工具时，例如 `02-lvm/lvm.sh`，在 inventory 补齐后手动导出一次即可：
+
+```bash
+go run ./cmd/bootstrapctl export-ops-env -i ./demo-init/inventory.yaml -o ./ops-environment.sh
+```
+
+这条命令适合两类场景：
+
+1. 第一次把已补齐的 inventory 导出给旧脚本使用
+2. inventory 后续又改过，需要手动刷新兼容文件
+
+典型例子包括：
+
+- `02-lvm/lvm.sh`
+- 旧的批量巡检脚本
+- 仍然读取 `NODE_NAMES / NODE_IPS` 数组的交付脚本
 
 说明：
 - `scan` 当前只依赖 `inventory`
@@ -338,3 +371,14 @@ features:
 更多开发说明见：
 
 - [docs/03-development.md](./docs/03-development.md)
+
+## ops-environment.sh 最新规则
+
+从当前版本开始，`bootstrapctl` 对 `ops-environment.sh` 的处理规则如下：
+
+- `init` 只生成 `inventory.yaml` 和 `profile.yaml` 模板，不会直接生成 `ops-environment.sh`
+- `scan`、`plan`、`apply`、`verify` 会自动在 `inventory.yaml` 同一目录下同步一份 `ops-environment.sh`
+- 如果内容没有变化，会直接复用已有文件，不会重复改写，因此可以多次幂等执行
+- `export-ops-env` 现在保留为手工刷新或单独桥接旧 Shell 脚本的补充命令
+
+这样做的好处是，文件的生成时点更靠近真实执行前，不会把 `init` 阶段的占位模板误当成真实可用的节点清单。
