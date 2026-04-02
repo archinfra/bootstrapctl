@@ -2,6 +2,8 @@ package tasks
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -243,6 +245,58 @@ func TestSSHBastionClientConfigTaskCheckAndApply(t *testing.T) {
 	}
 	if !apply.Changed {
 		t.Fatalf("expected bastion ssh client config apply to report changed")
+	}
+}
+
+func TestSSHControllerClientConfigTaskCheckAndApply(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config")
+	task := &SSHControllerClientConfigTask{
+		TargetNodeSpec: config.NodeConnection{
+			Name:        "node-01",
+			IP:          "192.168.24.4",
+			HostIP:      "192.168.24.4",
+			SSHUser:     "root",
+			SSHPort:     22,
+			SSHPassword: "changeme",
+		},
+		ControllerKeyPath:       "~/.ssh/bootstrapctl_ed25519",
+		ControllerSSHConfigPath: configPath,
+	}
+
+	check, err := task.Check(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if !check.Needed {
+		t.Fatalf("expected controller ssh client config to require change")
+	}
+
+	apply, err := task.Apply(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if !apply.Changed {
+		t.Fatalf("expected controller ssh client config apply to report changed")
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(content), "Host node-01 192.168.24.4") {
+		t.Fatalf("expected host aliases in controller ssh config")
+	}
+	if !strings.Contains(string(content), "IdentityFile ~/.ssh/bootstrapctl_ed25519") {
+		t.Fatalf("expected identity file in controller ssh config")
+	}
+
+	check, err = task.Check(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("second Check() error = %v", err)
+	}
+	if check.Needed {
+		t.Fatalf("expected controller ssh client config to be idempotent after apply")
 	}
 }
 

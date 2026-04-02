@@ -104,16 +104,18 @@ type FeatureFlags struct {
 
 // SSHKeyPolicy 描述控制端公钥如何分发到目标主机。
 type SSHKeyPolicy struct {
-	AuthorizedUser          string `yaml:"authorized_user"`
-	PublicKeyPath           string `yaml:"public_key_path"`
-	PublicKey               string `yaml:"public_key"`
-	AutoGenerate            *bool  `yaml:"auto_generate"`
-	GeneratedKeyPath        string `yaml:"generated_key_path"`
-	EnableBastionHop        *bool  `yaml:"enable_bastion_hop"`
-	BastionKeyPath          string `yaml:"bastion_key_path"`
-	ManageBastionSSHConfig  *bool  `yaml:"manage_bastion_ssh_config"`
-	BastionSSHConfigPath    string `yaml:"bastion_ssh_config_path"`
-	ResolvedPublicKey       string `yaml:"-"`
+	AuthorizedUser            string `yaml:"authorized_user"`
+	PublicKeyPath             string `yaml:"public_key_path"`
+	PublicKey                 string `yaml:"public_key"`
+	AutoGenerate              *bool  `yaml:"auto_generate"`
+	GeneratedKeyPath          string `yaml:"generated_key_path"`
+	ManageControllerSSHConfig *bool  `yaml:"manage_controller_ssh_config"`
+	ControllerSSHConfigPath   string `yaml:"controller_ssh_config_path"`
+	EnableBastionHop          *bool  `yaml:"enable_bastion_hop"`
+	BastionKeyPath            string `yaml:"bastion_key_path"`
+	ManageBastionSSHConfig    *bool  `yaml:"manage_bastion_ssh_config"`
+	BastionSSHConfigPath      string `yaml:"bastion_ssh_config_path"`
+	ResolvedPublicKey         string `yaml:"-"`
 }
 
 // ManagedAdminPolicy 描述“创建一个受控运维账号，并逐步替代直接 root 登录”的策略。
@@ -371,9 +373,13 @@ func (p *Profile) ApplyDefaults() {
 
 	setBoolDefault(&p.SSHKey.EnableBastionHop, true)
 	setBoolDefault(&p.SSHKey.AutoGenerate, true)
+	setBoolDefault(&p.SSHKey.ManageControllerSSHConfig, true)
 	setBoolDefault(&p.SSHKey.ManageBastionSSHConfig, true)
 	if strings.TrimSpace(p.SSHKey.GeneratedKeyPath) == "" {
 		p.SSHKey.GeneratedKeyPath = "~/.ssh/bootstrapctl_ed25519"
+	}
+	if strings.TrimSpace(p.SSHKey.ControllerSSHConfigPath) == "" {
+		p.SSHKey.ControllerSSHConfigPath = "~/.ssh/config"
 	}
 	if strings.TrimSpace(p.SSHKey.BastionKeyPath) == "" {
 		p.SSHKey.BastionKeyPath = "~/.ssh/bootstrapctl_ed25519"
@@ -574,6 +580,10 @@ func (p FirewallPolicy) RequireIPTablesEnabled() bool {
 
 func (p SSHKeyPolicy) EnableBastionHopEnabled() bool {
 	return p.EnableBastionHop != nil && *p.EnableBastionHop
+}
+
+func (p SSHKeyPolicy) ManageControllerSSHConfigEnabled() bool {
+	return p.ManageControllerSSHConfig != nil && *p.ManageControllerSSHConfig
 }
 
 func (p SSHKeyPolicy) ManageBastionSSHConfigEnabled() bool {

@@ -52,6 +52,7 @@ func Build(inventory config.Inventory, profile config.Profile) []Task {
 	nodes := inventory.ResolveNodes()
 	taskList := make([]Task, 0, len(nodes)*14)
 	controllerKeyTargets := map[string]struct{}{}
+	controllerSSHConfigTargets := map[string]struct{}{}
 
 	for _, node := range nodes {
 		if profile.Features.SSHConnectivityEnabled() {
@@ -67,6 +68,14 @@ func Build(inventory config.Inventory, profile config.Profile) []Task {
 						PublicKey:      profile.SSHKey.ResolvedPublicKey,
 					})
 					controllerKeyTargets[nodeIdentityKey(bastionNode)] = struct{}{}
+					if profile.SSHKey.ManageControllerSSHConfigEnabled() {
+						taskList = append(taskList, &SSHControllerClientConfigTask{
+							TargetNodeSpec:          bastionNode,
+							ControllerKeyPath:       profile.SSHKey.GeneratedKeyPath,
+							ControllerSSHConfigPath: profile.SSHKey.ControllerSSHConfigPath,
+						})
+						controllerSSHConfigTargets[nodeIdentityKey(bastionNode)] = struct{}{}
+					}
 				}
 			}
 			if _, exists := controllerKeyTargets[nodeIdentityKey(node)]; !exists {
@@ -76,6 +85,14 @@ func Build(inventory config.Inventory, profile config.Profile) []Task {
 					PublicKey:      profile.SSHKey.ResolvedPublicKey,
 				})
 				controllerKeyTargets[nodeIdentityKey(node)] = struct{}{}
+				if profile.SSHKey.ManageControllerSSHConfigEnabled() {
+					taskList = append(taskList, &SSHControllerClientConfigTask{
+						TargetNodeSpec:          node,
+						ControllerKeyPath:       profile.SSHKey.GeneratedKeyPath,
+						ControllerSSHConfigPath: profile.SSHKey.ControllerSSHConfigPath,
+					})
+					controllerSSHConfigTargets[nodeIdentityKey(node)] = struct{}{}
+				}
 			}
 		}
 		// bastion -> target 的二跳免密与客户端 SSH config，

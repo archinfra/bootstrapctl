@@ -228,6 +228,16 @@ ssh_key:
   # 当 auto_generate=true 时，会优先维护这把 key。
   generated_key_path: ~/.ssh/bootstrapctl_ed25519
 
+  # 是否在“当前执行节点”本机维护 SSH 客户端配置。
+  # 开启后，执行节点上可直接使用：
+  # - ssh node-01
+  # - ssh 192.168.x.x
+  # 而不需要每次手工追加 -i ~/.ssh/bootstrapctl_ed25519
+  manage_controller_ssh_config: true
+
+  # 当前执行节点本机的 SSH 客户端配置文件路径。
+  controller_ssh_config_path: ~/.ssh/config
+
   # 是否补齐 bastion -> 内网目标节点 的免密链路。
   # 这更接近“主节点/跳板机 到 私网节点”的互信配置，
   # 与“控制端是否免密登录所有节点”不是一回事。

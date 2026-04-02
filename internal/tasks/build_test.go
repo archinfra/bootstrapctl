@@ -51,19 +51,25 @@ func TestBuildIncludesSSHAuthorizedKeyTaskWhenEnabled(t *testing.T) {
 	profile.SSHKey.ResolvedPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBootstrapCtlExampleKey bootstrapctl@example"
 
 	taskList := Build(inventory, profile)
-	if len(taskList) != 10 {
-		t.Fatalf("expected 10 tasks for 1 node with ssh_authorized_key enabled, got %d", len(taskList))
+	if len(taskList) != 11 {
+		t.Fatalf("expected 11 tasks for 1 node with ssh_authorized_key enabled, got %d", len(taskList))
 	}
 
 	found := false
+	controllerConfigFound := false
 	for _, task := range taskList {
 		if task.Key() == "ssh-authorized-key" {
 			found = true
-			break
+		}
+		if task.Key() == "ssh-controller-client-config" {
+			controllerConfigFound = true
 		}
 	}
 	if !found {
 		t.Fatalf("expected ssh-authorized-key task to be present")
+	}
+	if !controllerConfigFound {
+		t.Fatalf("expected ssh-controller-client-config task to be present")
 	}
 }
 
@@ -90,12 +96,15 @@ func TestBuildIncludesBastionHopTaskWhenNodeUsesBastion(t *testing.T) {
 	taskList := Build(inventory, profile)
 
 	var controllerTasks int
+	var controllerConfigTasks int
 	var hopTasks int
 	var bastionConfigTasks int
 	for _, task := range taskList {
 		switch task.Key() {
 		case "ssh-authorized-key":
 			controllerTasks++
+		case "ssh-controller-client-config":
+			controllerConfigTasks++
 		case "ssh-bastion-hop-key":
 			hopTasks++
 		case "ssh-bastion-client-config":
@@ -105,6 +114,9 @@ func TestBuildIncludesBastionHopTaskWhenNodeUsesBastion(t *testing.T) {
 
 	if controllerTasks != 2 {
 		t.Fatalf("expected controller public key to be distributed to bastion and target, got %d tasks", controllerTasks)
+	}
+	if controllerConfigTasks != 2 {
+		t.Fatalf("expected controller ssh config to be maintained for bastion and target, got %d tasks", controllerConfigTasks)
 	}
 	if hopTasks != 1 {
 		t.Fatalf("expected one bastion hop task, got %d", hopTasks)
@@ -137,12 +149,15 @@ func TestBuildIncludesBastionHopTasksEvenWhenControllerSSHKeyDistributionDisable
 	taskList := Build(inventory, profile)
 
 	var controllerTasks int
+	var controllerConfigTasks int
 	var hopTasks int
 	var bastionConfigTasks int
 	for _, task := range taskList {
 		switch task.Key() {
 		case "ssh-authorized-key":
 			controllerTasks++
+		case "ssh-controller-client-config":
+			controllerConfigTasks++
 		case "ssh-bastion-hop-key":
 			hopTasks++
 		case "ssh-bastion-client-config":
@@ -152,6 +167,9 @@ func TestBuildIncludesBastionHopTasksEvenWhenControllerSSHKeyDistributionDisable
 
 	if controllerTasks != 0 {
 		t.Fatalf("expected controller ssh key task to stay disabled, got %d", controllerTasks)
+	}
+	if controllerConfigTasks != 0 {
+		t.Fatalf("expected controller ssh config task to stay disabled with controller ssh key distribution disabled, got %d", controllerConfigTasks)
 	}
 	if hopTasks != 1 {
 		t.Fatalf("expected one bastion hop task even when controller ssh key is disabled, got %d", hopTasks)
