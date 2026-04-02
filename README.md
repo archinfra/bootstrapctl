@@ -268,6 +268,53 @@ Linux `amd64` / `arm64` 双架构构建脚本：
 
 当前这些 workflow 是按“`bootstrapctl` 作为独立 GitHub 仓库”组织的。如果你把当前目录单独推到 GitHub 仓库根目录，工作流就可以直接生效。
 
+### 控制端专用 SSH key
+
+当你开启：
+
+```yaml
+features:
+  ssh_authorized_key: true
+```
+
+并且未显式提供 `public_key` 或 `public_key_path` 时，当前版本默认会优先维护一把控制端专用 key：
+
+- `~/.ssh/bootstrapctl_ed25519`
+
+行为是：
+
+- 如果这把 key 已存在，直接复用
+- 如果不存在，自动生成 `ed25519` 密钥对
+- 再把对应公钥分发到目标节点
+
+这样可以避免把日常使用的 `id_rsa` / `id_ed25519` 和批量初始化用途混在一起。
+
+### 发布到独立 GitHub 仓库
+
+当前 `bootstrapctl` 仍位于 `release` 大仓库中，因此不能直接把这个子目录当成独立 Git 仓库 `git push`。
+
+项目提供了一个发布脚本：
+
+- [publish-bootstrapctl.ps1](./publish-bootstrapctl.ps1)
+
+它会自动完成：
+
+- 检查 `bootstrapctl` 子目录是否有未提交改动
+- 执行 `git subtree split`
+- 推送到独立 GitHub 仓库
+
+先看 dry-run：
+
+```powershell
+.\publish-bootstrapctl.ps1 -DryRun
+```
+
+正式推送：
+
+```powershell
+.\publish-bootstrapctl.ps1 -SetUpstream
+```
+
 更多开发说明见：
 
 - [docs/03-development.md](./docs/03-development.md)

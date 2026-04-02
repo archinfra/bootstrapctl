@@ -156,6 +156,21 @@ ssh_key:
   public_key: ssh-ed25519 AAAA... bootstrapctl@example
 ```
 
+当前版本还支持自动生成控制端专用 key。
+
+如果你开启了 `ssh_authorized_key`，并且没有显式提供 `public_key` 或现成的 `public_key_path`，默认会优先维护：
+
+- `~/.ssh/bootstrapctl_ed25519`
+
+也可以显式指定：
+
+```yaml
+ssh_key:
+  authorized_user: root
+  auto_generate: true
+  generated_key_path: ~/.ssh/bootstrapctl_ed25519
+```
+
 如果节点声明了 `bastion`，并且 `enable_bastion_hop: true`，工具会继续补齐：
 
 - 跳板机 -> 目标节点 的免密链路

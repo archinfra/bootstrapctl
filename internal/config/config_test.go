@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -209,6 +210,75 @@ ssh_key:
 	}
 	if profile.SSHKey.ResolvedPublicKey != "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBootstrapCtlExampleKey bootstrapctl@example" {
 		t.Fatalf("unexpected resolved public key: %q", profile.SSHKey.ResolvedPublicKey)
+	}
+}
+
+func TestLoadProfileSSHAuthorizedKeyAutoGeneratesDedicatedKey(t *testing.T) {
+	dir := t.TempDir()
+	generatedPath := filepath.Join(dir, "bootstrapctl_ed25519")
+	path := filepath.Join(dir, "profile.yaml")
+	content := `
+name: test
+features:
+  ssh_authorized_key: true
+ssh_key:
+  authorized_user: root
+  auto_generate: true
+  generated_key_path: ` + generatedPath + `
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+
+	profile, err := LoadProfile(path)
+	if err != nil {
+		t.Fatalf("LoadProfile() error = %v", err)
+	}
+
+	if profile.SSHKey.ResolvedPublicKey == "" {
+		t.Fatalf("expected generated public key to be resolved")
+	}
+	if profile.SSHKey.PublicKeyPath != generatedPath+".pub" {
+		t.Fatalf("expected generated public key path, got %q", profile.SSHKey.PublicKeyPath)
+	}
+	if _, err := os.Stat(generatedPath); err != nil {
+		t.Fatalf("expected generated private key to exist: %v", err)
+	}
+	if _, err := os.Stat(generatedPath + ".pub"); err != nil {
+		t.Fatalf("expected generated public key to exist: %v", err)
+	}
+}
+
+func TestLoadProfileSSHAuthorizedKeyAutoGeneratesAtExplicitPublicKeyPath(t *testing.T) {
+	dir := t.TempDir()
+	explicitPubPath := filepath.Join(dir, "id_ed25519.pub")
+	path := filepath.Join(dir, "profile.yaml")
+	content := `
+name: test
+features:
+  ssh_authorized_key: true
+ssh_key:
+  authorized_user: root
+  auto_generate: true
+  public_key_path: ` + explicitPubPath + `
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+
+	profile, err := LoadProfile(path)
+	if err != nil {
+		t.Fatalf("LoadProfile() error = %v", err)
+	}
+
+	if profile.SSHKey.PublicKeyPath != explicitPubPath {
+		t.Fatalf("expected explicit public key path to stay unchanged, got %q", profile.SSHKey.PublicKeyPath)
+	}
+	if _, err := os.Stat(strings.TrimSuffix(explicitPubPath, ".pub")); err != nil {
+		t.Fatalf("expected generated private key to exist: %v", err)
+	}
+	if _, err := os.Stat(explicitPubPath); err != nil {
+		t.Fatalf("expected generated public key to exist: %v", err)
 	}
 }
 

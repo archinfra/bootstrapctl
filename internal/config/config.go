@@ -1,12 +1,16 @@
 package config
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 )
 
@@ -103,6 +107,8 @@ type SSHKeyPolicy struct {
 	AuthorizedUser    string `yaml:"authorized_user"`
 	PublicKeyPath     string `yaml:"public_key_path"`
 	PublicKey         string `yaml:"public_key"`
+	AutoGenerate      *bool  `yaml:"auto_generate"`
+	GeneratedKeyPath  string `yaml:"generated_key_path"`
 	EnableBastionHop  *bool  `yaml:"enable_bastion_hop"`
 	BastionKeyPath    string `yaml:"bastion_key_path"`
 	ResolvedPublicKey string `yaml:"-"`
@@ -362,6 +368,10 @@ func (p *Profile) ApplyDefaults() {
 	}
 
 	setBoolDefault(&p.SSHKey.EnableBastionHop, true)
+	setBoolDefault(&p.SSHKey.AutoGenerate, true)
+	if strings.TrimSpace(p.SSHKey.GeneratedKeyPath) == "" {
+		p.SSHKey.GeneratedKeyPath = "~/.ssh/bootstrapctl_ed25519"
+	}
 	if strings.TrimSpace(p.SSHKey.BastionKeyPath) == "" {
 		p.SSHKey.BastionKeyPath = "~/.ssh/bootstrapctl_ed25519"
 	}
@@ -560,6 +570,10 @@ func (p SSHKeyPolicy) EnableBastionHopEnabled() bool {
 	return p.EnableBastionHop != nil && *p.EnableBastionHop
 }
 
+func (p SSHKeyPolicy) AutoGenerateEnabled() bool {
+	return p.AutoGenerate != nil && *p.AutoGenerate
+}
+
 func (p ManagedAdminPolicy) CreateHomeEnabled() bool {
 	return p.CreateHome != nil && *p.CreateHome
 }
@@ -585,7 +599,7 @@ func (p SSHKeyPolicy) ResolvePublicKey() (publicKey string, resolvedPath string,
 	return resolvePublicKey(p.PublicKey, p.PublicKeyPath, []string{
 		expandHome("~/.ssh/id_ed25519.pub"),
 		expandHome("~/.ssh/id_rsa.pub"),
-	})
+	}, p.AutoGenerateEnabled(), p.GeneratedKeyPath)
 }
 
 // ResolveControllerPublicKey 解析运维账号应安装的控制端公钥。
@@ -595,7 +609,7 @@ func (p ManagedAdminPolicy) ResolveControllerPublicKey(fallbackPublicKey string)
 		return normalized, "inline", nil
 	}
 	if strings.TrimSpace(p.ControllerPublicKeyPath) != "" {
-		return resolvePublicKey("", p.ControllerPublicKeyPath, nil)
+		return resolvePublicKey("", p.ControllerPublicKeyPath, nil, false, "")
 	}
 	if normalized := normalizePublicKey(fallbackPublicKey); normalized != "" {
 		return normalized, "ssh_key", nil
@@ -603,10 +617,10 @@ func (p ManagedAdminPolicy) ResolveControllerPublicKey(fallbackPublicKey string)
 	return resolvePublicKey("", "", []string{
 		expandHome("~/.ssh/id_ed25519.pub"),
 		expandHome("~/.ssh/id_rsa.pub"),
-	})
+	}, true, "~/.ssh/bootstrapctl_ed25519")
 }
 
-func resolvePublicKey(inlineValue string, explicitPath string, fallbackPaths []string) (publicKey string, resolvedPath string, err error) {
+func resolvePublicKey(inlineValue string, explicitPath string, fallbackPaths []string, autoGenerate bool, generatedKeyPath string) (publicKey string, resolvedPath string, err error) {
 	if normalized := normalizePublicKey(inlineValue); normalized != "" {
 		return normalized, "inline", nil
 	}
@@ -615,7 +629,11 @@ func resolvePublicKey(inlineValue string, explicitPath string, fallbackPaths []s
 	if strings.TrimSpace(explicitPath) != "" {
 		candidates = append(candidates, expandHome(explicitPath))
 	} else {
-		candidates = append(candidates, fallbackPaths...)
+		if autoGenerate && strings.TrimSpace(generatedKeyPath) != "" {
+			candidates = append(candidates, resolveGeneratedPublicKeyPath(generatedKeyPath))
+		} else {
+			candidates = append(candidates, fallbackPaths...)
+		}
 	}
 
 	for _, candidate := range candidates {
@@ -628,11 +646,122 @@ func resolvePublicKey(inlineValue string, explicitPath string, fallbackPaths []s
 		}
 	}
 
+	if autoGenerate {
+		privateKeyPath := resolveGeneratedPrivateKeyPath(explicitPath, generatedKeyPath)
+		publicKey, resolvedPath, err := ensureGeneratedPublicKey(privateKeyPath)
+		if err == nil {
+			return publicKey, resolvedPath, nil
+		}
+		return "", "", fmt.Errorf("自动生成控制端 SSH 专用密钥失败: %w", err)
+	}
+
 	return "", "", fmt.Errorf("未找到可用的 SSH 公钥，请通过 public_key 或 public_key_path 提供")
 }
 
 func normalizePublicKey(value string) string {
 	return strings.TrimSpace(value)
+}
+
+func resolveGeneratedPrivateKeyPath(explicitPath string, generatedKeyPath string) string {
+	if strings.TrimSpace(explicitPath) != "" {
+		expanded := expandHome(explicitPath)
+		if strings.HasSuffix(expanded, ".pub") {
+			return strings.TrimSuffix(expanded, ".pub")
+		}
+		return expanded
+	}
+
+	if strings.TrimSpace(generatedKeyPath) != "" {
+		expanded := expandHome(generatedKeyPath)
+		if strings.HasSuffix(expanded, ".pub") {
+			return strings.TrimSuffix(expanded, ".pub")
+		}
+		return expanded
+	}
+
+	return expandHome("~/.ssh/bootstrapctl_ed25519")
+}
+
+func resolveGeneratedPublicKeyPath(generatedKeyPath string) string {
+	privateKeyPath := resolveGeneratedPrivateKeyPath("", generatedKeyPath)
+	return privateKeyPath + ".pub"
+}
+
+func ensureGeneratedPublicKey(privateKeyPath string) (publicKey string, resolvedPath string, err error) {
+	privateKeyPath = expandHome(privateKeyPath)
+	publicKeyPath := privateKeyPath + ".pub"
+
+	if content, readErr := os.ReadFile(publicKeyPath); readErr == nil {
+		if normalized := normalizePublicKey(string(content)); normalized != "" {
+			return normalized, publicKeyPath, nil
+		}
+	}
+
+	if privateContent, readErr := os.ReadFile(privateKeyPath); readErr == nil {
+		privateKey, parseErr := ssh.ParseRawPrivateKey(privateContent)
+		if parseErr == nil {
+			publicKeyBytes, marshalErr := marshalAuthorizedKeyFromPrivate(privateKey)
+			if marshalErr == nil {
+				if writeErr := writeControllerKeyPair(privateKeyPath, privateContent, publicKeyBytes, false); writeErr == nil {
+					return strings.TrimSpace(string(publicKeyBytes)), publicKeyPath, nil
+				}
+			}
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Dir(privateKeyPath), 0o700); err != nil {
+		return "", "", err
+	}
+
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return "", "", err
+	}
+
+	comment := "bootstrapctl@controller"
+	block, err := ssh.MarshalPrivateKey(privateKey, comment)
+	if err != nil {
+		return "", "", err
+	}
+
+	privateKeyBytes := pem.EncodeToMemory(block)
+	publicKeyBytes, err := marshalAuthorizedKeyFromPrivate(privateKey)
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := writeControllerKeyPair(privateKeyPath, privateKeyBytes, publicKeyBytes, true); err != nil {
+		return "", "", err
+	}
+
+	return strings.TrimSpace(string(publicKeyBytes)), publicKeyPath, nil
+}
+
+func marshalAuthorizedKeyFromPrivate(privateKey interface{}) ([]byte, error) {
+	switch key := privateKey.(type) {
+	case ed25519.PrivateKey:
+		publicKey, err := ssh.NewPublicKey(key.Public())
+		if err != nil {
+			return nil, err
+		}
+		return ssh.MarshalAuthorizedKey(publicKey), nil
+	default:
+		signer, err := ssh.NewSignerFromKey(privateKey)
+		if err != nil {
+			return nil, err
+		}
+		return ssh.MarshalAuthorizedKey(signer.PublicKey()), nil
+	}
+}
+
+func writeControllerKeyPair(privateKeyPath string, privateKeyBytes []byte, publicKeyBytes []byte, writePrivate bool) error {
+	publicKeyPath := privateKeyPath + ".pub"
+	if writePrivate {
+		if err := os.WriteFile(privateKeyPath, privateKeyBytes, 0o600); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(publicKeyPath, publicKeyBytes, 0o644)
 }
 
 func expandHome(path string) string {

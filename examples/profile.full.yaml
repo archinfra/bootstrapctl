@@ -48,13 +48,23 @@ ssh_key:
   # - 留空时，写入当前节点 ssh_user 对应用户
   authorized_user: root
 
-  # 留空时会自动尝试控制端默认公钥：
+  # 默认留空。
+  # 当 auto_generate=true 时，优先使用 generated_key_path 对应的专用公钥。
+  # 如关闭 auto_generate，则会回退尝试控制端默认公钥：
   # - ~/.ssh/id_ed25519.pub
   # - ~/.ssh/id_rsa.pub
   public_key_path: ""
 
   # 如想直接内联公钥，可在此填写，优先级高于 public_key_path
   public_key: ""
+
+  # 默认 true
+  # 当控制端找不到现成公钥时，自动生成一把 bootstrapctl 专用 ed25519 密钥
+  auto_generate: true
+
+  # 默认 ~/.ssh/bootstrapctl_ed25519
+  # 当 auto_generate=true 时，优先使用并维护这里的专用密钥对
+  generated_key_path: ~/.ssh/bootstrapctl_ed25519
 
   # 默认 true
   enable_bastion_hop: true

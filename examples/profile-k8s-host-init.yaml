@@ -15,13 +15,15 @@ features:
 
 # ssh_key 只有在 features.ssh_authorized_key=true 时才会生效。
 # 推荐做法：
-# 1. 控制端提前准备好 SSH 公钥
-# 2. 优先把 public_key_path 留空，让工具自动尝试默认公钥
+# 1. 控制端可提前准备 SSH 公钥；如果没有，也可以让 bootstrapctl 自动生成专用 key
+# 2. 推荐把 public_key_path 留空，让工具优先使用 generated_key_path 的专用 key
 # 3. 如节点配置了 bastion，则可自动补齐 bastion -> target 的免密
 ssh_key:
   authorized_user: root
   public_key_path: ""
   # public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample bootstrapctl@example
+  auto_generate: true
+  generated_key_path: ~/.ssh/bootstrapctl_ed25519
   enable_bastion_hop: true
   bastion_key_path: ~/.ssh/bootstrapctl_ed25519
 
