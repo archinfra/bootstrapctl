@@ -31,3 +31,19 @@ func TestParseScanFlagsSupportsAbbreviatedInventory(t *testing.T) {
 		t.Fatalf("unexpected inventory path: %q", options.InventoryPath)
 	}
 }
+
+func TestParseScanFlagsAcceptsOptionalProfileAlias(t *testing.T) {
+	options, ok := parseScanFlags(ui.NewConsole(), []string{"-i", "inventory.yaml", "-p", "profile.yaml", "-t", "20s"})
+	if !ok {
+		t.Fatalf("expected scan flags with optional profile to parse successfully")
+	}
+	if options.InventoryPath != "inventory.yaml" {
+		t.Fatalf("unexpected inventory path: %q", options.InventoryPath)
+	}
+	if options.ProfilePath != "profile.yaml" {
+		t.Fatalf("unexpected profile path: %q", options.ProfilePath)
+	}
+	if options.Timeout.String() != "20s" {
+		t.Fatalf("unexpected timeout: %s", options.Timeout)
+	}
+}

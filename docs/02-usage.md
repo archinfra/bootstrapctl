@@ -81,6 +81,12 @@ nodes:
 go run ./cmd/bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
 ```
 
+说明：
+
+- `scan` 当前只读取 `inventory`
+- 如果你为了保持命令格式统一，写成 `scan -i inventory.yaml -p profile.yaml` 也可以
+- 其中 `-p / --profile` 在扫描阶段只做兼容接收，不参与扫描判断
+
 ### 5. 再规划
 
 ```bash

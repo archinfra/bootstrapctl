@@ -31,6 +31,7 @@ type lifecycleOptions struct {
 
 type scanOptions struct {
 	InventoryPath string
+	ProfilePath   string
 	ReportDir     string
 	Timeout       time.Duration
 }
@@ -187,6 +188,9 @@ func runScan(console *ui.Console, args []string) int {
 	console.Banner("bootstrapctl SCAN")
 	console.Section("执行参数")
 	console.Item("inventory", options.InventoryPath)
+	if strings.TrimSpace(options.ProfilePath) != "" {
+		console.Item("profile", options.ProfilePath+"（当前 scan 阶段仅兼容接收，不参与扫描判断）")
+	}
 	console.Item("环境", inventory.ClusterName)
 	console.Item("节点数", len(inventory.Nodes))
 	console.Item("超时", options.Timeout)
@@ -297,6 +301,9 @@ func parseScanFlags(console *ui.Console, args []string) (scanOptions, bool) {
 	fs.StringVar(&options.InventoryPath, "inventory", "", "inventory YAML 文件路径")
 	fs.StringVar(&options.InventoryPath, "inv", "", "inventory YAML 文件路径（缩写）")
 	fs.StringVar(&options.InventoryPath, "i", "", "inventory YAML 文件路径（短参数）")
+	fs.StringVar(&options.ProfilePath, "profile", "", "profile YAML 文件路径（当前 scan 阶段为兼容参数，不参与扫描逻辑）")
+	fs.StringVar(&options.ProfilePath, "prof", "", "profile YAML 文件路径（缩写，当前 scan 阶段仅兼容接收）")
+	fs.StringVar(&options.ProfilePath, "p", "", "profile YAML 文件路径（短参数，当前 scan 阶段仅兼容接收）")
 	fs.StringVar(&options.ReportDir, "report-dir", defaultReportDir, "扫描报告输出目录")
 	fs.StringVar(&options.ReportDir, "r", defaultReportDir, "扫描报告输出目录（短参数）")
 	fs.DurationVar(&options.Timeout, "timeout", 15*time.Second, "单个 SSH 任务超时时间")
@@ -354,7 +361,7 @@ func printUsage(console *ui.Console) {
 
 用法:
   bootstrapctl init    [-d .] [-c demo]
-  bootstrapctl scan    -i ./inventory.yaml
+  bootstrapctl scan    -i ./inventory.yaml [-p ./profile.yaml]
   bootstrapctl plan    -i ./inventory.yaml -p ./profile.yaml
   bootstrapctl apply   -i ./inventory.yaml -p ./profile.yaml
   bootstrapctl verify  -i ./inventory.yaml -p ./profile.yaml

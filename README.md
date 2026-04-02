@@ -93,6 +93,11 @@ go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
 go run ./cmd/bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
 ```
 
+说明：
+- `scan` 当前只依赖 `inventory`
+- 为了统一命令习惯，也兼容接收 `-p ./profile.yaml`
+- 但 `profile` 在扫描阶段不会参与判断逻辑
+
 ### 3. 看规划，不落变更
 
 ```bash
