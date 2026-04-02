@@ -41,6 +41,12 @@
 go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
 ```
 
+`init` 生成的是“完整体模板”，不是简化版占位文件：
+
+- `inventory.yaml` 会包含连接方式、`host_ip`、跳板机覆盖等详细注释
+- `profile.yaml` 会包含 SSH 公钥、managed admin、防火墙、内核网络、存储、ulimit 等完整字段说明
+- 你通常只需要直接改这两份生成文件，不需要再手抄示例
+
 ### 2. 填写 inventory
 
 单机最小示例：
@@ -62,8 +68,11 @@ nodes:
 
 ### 3. 填写 profile
 
-推荐从这份开始：
+推荐优先使用 `init` 生成出来的 `profile.yaml`。
 
+如果需要查看“完整字段总览”或做交叉对照，再看：
+
+- [../examples/profile.full.yaml](../examples/profile.full.yaml)
 - [../examples/profile-k8s-host-init.yaml](../examples/profile-k8s-host-init.yaml)
 
 ### 4. 先扫描

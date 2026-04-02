@@ -1,30 +1,38 @@
-# inventory.full.yaml
+# bootstrapctl inventory 完整模板
 #
-# 这是一份“全量字段示例”，不是要求全部填写。
-
+# inventory 负责回答两个问题：
+# 1. 目标机器是谁
+# 2. 控制端应该如何连接到它们
+#
+# 这份模板默认既能覆盖单机，也能覆盖多机和跳板机场景。
+# 如果你只是做单机初始化，保留一个节点即可；其余节点可以直接删除。
 cluster_name: demo-cluster
 
 transport:
-  # 默认 root
+  # 默认 SSH 用户。
+  # 如果节点级字段留空，会继承这里的值。
   ssh_user: root
 
-  # 默认 22
+  # 默认 SSH 端口。
   ssh_port: 22
 
-  # 默认 ""
+  # 默认 SSH 密码。
+  # 如果你使用私钥登录，可以把它留空。
   ssh_password: changeme
 
-  # 默认 ""
-  # 如配置了 ssh_private_key，可以不再填写 ssh_password
+  # 默认 SSH 私钥路径。
+  # 留空表示优先使用密码。
   ssh_private_key: ""
 
-  # 默认 false
-  # 当 ssh_user 不是 root，但拥有 sudo 权限时可设为 true
+  # 是否在远端命令执行时统一使用 sudo。
+  # 典型场景是：
+  # - ssh_user 不是 root
+  # - 该用户具备 sudo -n 权限
   use_sudo: false
 
-  # 默认不启用跳板机
-  # 如目标节点只能经由堡垒机访问，可在这里配置 bastion。
-  # bastion 认证字段留空时，会优先继承 transport.bastion.*，再继承 transport.*
+  # 全局跳板机配置。
+  # 如果目标节点只能通过堡垒机访问，可以在这里统一定义。
+  # 节点级 bastion 留空时，会继承这里的配置。
   bastion:
     host: ""
     ssh_user: root
@@ -33,21 +41,38 @@ transport:
     ssh_private_key: ""
 
 nodes:
-  - name: amd-master-01
-    ip: 36.137.200.29
-    # host_ip 用于 /etc/hosts、节点互联和主 IP 标识。
-    # 不填写时，bootstrapctl 会在远端执行 hostname -I，并取第一个非回环地址。
-    host_ip: ""
-    roles: [master]
+  - name: node-01
+    # ip 用于 SSH 连接入口。
+    # 对公网节点，这里通常填公网 IP。
+    ip: 192.168.24.5
 
-    # 节点级字段留空时，会继承 transport.*
+    # host_ip 用于：
+    # - /etc/hosts 受控区块
+    # - 节点互联
+    # - 主机主 IP 标识
+    #
+    # 如果留空，bootstrapctl 会在远端执行 hostname -I，
+    # 并选择第一个非回环地址。
+    host_ip: ""
+
+    # 角色是逻辑标签，不强制与 Kubernetes 绑定。
+    # 单机场景可以写 [single]。
+    roles: [single]
+
+    # 节点级 SSH 参数。
+    # 留空时会继承 transport.*。
     ssh_user: root
     ssh_port: 22
-    ssh_password: changeme
+    ssh_password: ""
     ssh_private_key: ""
     use_sudo: false
 
-    # 节点级 bastion 留空时，会继承 transport.bastion
+    # 节点级跳板机。
+    # 如果你只想让某台节点单独走跳板机，可以在这里覆盖。
+    #
+    # 只填写 host 也可以，其余认证参数会按以下顺序自动继承：
+    # 1. transport.bastion.*
+    # 2. transport.*
     bastion:
       host: ""
       ssh_user: root
@@ -55,18 +80,18 @@ nodes:
       ssh_password: ""
       ssh_private_key: ""
 
-  - name: amd-worker-01
-    ip: 192.168.24.4
-    host_ip: 192.168.24.4
+  - name: node-02
+    ip: 192.168.24.6
+    host_ip: ""
     roles: [worker]
     ssh_user: root
     ssh_port: 22
-    ssh_password: changeme
+    ssh_password: ""
     ssh_private_key: ""
     use_sudo: false
     bastion:
-      host: 36.137.200.29
+      host: ""
       ssh_user: root
       ssh_port: 22
-      ssh_password: changeme
+      ssh_password: ""
       ssh_private_key: ""

@@ -79,6 +79,14 @@ go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
 - `./demo-init/inventory.yaml`
 - `./demo-init/profile.yaml`
 
+这两份文件不是“极简占位模板”，而是带完整中文注释的正式起步模板。
+设计原则是：
+
+- 用户第一次上手时，直接改 `init` 生成的文件即可
+- `init` 生成内容与 [examples/inventory.full.yaml](./examples/inventory.full.yaml)、
+  [examples/profile.full.yaml](./examples/profile.full.yaml) 保持同一套结构
+- 注释尽量解释“为什么这样配”，而不只是解释字段名
+
 ### 2. 先做基线扫描
 
 ```bash
@@ -118,6 +126,12 @@ go run ./cmd/bootstrapctl verify -i ./demo-init/inventory.yaml -p ./demo-init/pr
 - [examples/profile.full.yaml](./examples/profile.full.yaml)
 - [examples/profile-k8s-host-init.yaml](./examples/profile-k8s-host-init.yaml)
 - [examples/profile.managed-admin.yaml](./examples/profile.managed-admin.yaml)
+
+如果你只是第一次使用，推荐顺序是：
+
+1. 先执行 `init`
+2. 直接修改生成出来的 `inventory.yaml` 和 `profile.yaml`
+3. 只有在需要对照完整字段说明时，再回看 `examples/*.full.yaml`
 
 ### inventory 的核心字段
 

@@ -1,177 +1,168 @@
-# profile.full.yaml
+# bootstrapctl profile 完整模板
 #
-# 这是一份“全量字段示例”，用于展示 bootstrapctl 当前可配置的能力。
-# 真正使用时，可以删掉不需要的字段。
-
+# profile 描述“这批主机最终要收敛成什么状态”。
+# 这份模板默认面向 Kubernetes / 容器主机初始化场景，
+# 但也可以裁剪成普通业务主机的初始化模板。
 name: k8s-host-init
 
 features:
-  # 默认 true
+  # 是否检查 SSH 连通性。
+  # 一般保持开启，便于在 plan/apply 前先发现连通性问题。
   ssh_connectivity: true
 
-  # 默认 false
-  # 开启后会自动做两段免密：
+  # 是否为“当前执行机”分发 SSH 公钥到目标节点。
+  # 开启后会补齐两类链路：
   # 1. 控制端 -> 目标节点
-  # 2. 如节点配置了 bastion，则补齐 bastion -> 目标节点
+  # 2. 如节点配置了 bastion，则补齐 bastion -> 内网节点
   ssh_authorized_key: false
 
-  # 默认 false
-  # 开启后会创建受控运维账号，并在账号就绪后可选关闭直接 root SSH 登录
+  # 是否启用“受控运维账号”能力。
+  # 开启后可以：
+  # - 创建一个新的普通运维账号
+  # - 配置 sudo
+  # - 配置 sudo -n / sudo su -
+  # - 可选关闭 root SSH 直登
   managed_admin: false
 
-  # 默认 true
+  # 是否收敛 hostname。
   hostname: true
 
-  # 默认 true
+  # 是否维护 /etc/hosts 受控区块。
   hosts_file: true
 
-  # 默认 true
+  # 是否关闭 swap。
   disable_swap: true
 
-  # 默认 true
+  # 是否关闭 SELinux。
   disable_selinux: true
 
-  # 默认 true
+  # 是否收敛防火墙。
   firewall: true
 
-  # 默认 true
+  # 是否收敛 Kubernetes 相关内核网络参数。
   kernel_network: true
 
-  # 默认 true
+  # 是否收敛容器 graphroot / cri root / storage.conf。
   storage: true
 
-  # 默认 true
-  ulimit: true
-
 ssh_key:
-  # 默认行为：
-  # - 留空时，写入当前节点 ssh_user 对应用户
+  # 公钥要写入哪个远端用户。
+  # 一般保持 root；如果你使用普通运维账号，也可以改成该账号。
   authorized_user: root
 
-  # 默认留空。
-  # 当 auto_generate=true 时，优先使用 generated_key_path 对应的专用公钥。
-  # 如关闭 auto_generate，则会回退尝试控制端默认公钥：
-  # - ~/.ssh/id_ed25519.pub
-  # - ~/.ssh/id_rsa.pub
+  # 控制端现成公钥路径。
+  # 留空时：
+  # 1. 如果 auto_generate=true，会优先使用 generated_key_path 对应的专用密钥
+  # 2. 如果 auto_generate=false，会尝试 ~/.ssh/id_ed25519.pub 和 ~/.ssh/id_rsa.pub
   public_key_path: ""
 
-  # 如想直接内联公钥，可在此填写，优先级高于 public_key_path
+  # 如需直接内联公钥，可填这里，优先级高于 public_key_path。
   public_key: ""
 
-  # 默认 true
-  # 当控制端找不到现成公钥时，自动生成一把 bootstrapctl 专用 ed25519 密钥
+  # 是否在控制端自动生成一把专用 SSH key。
+  # 推荐开启，这样不会污染你日常登录用的默认密钥。
   auto_generate: true
 
-  # 默认 ~/.ssh/bootstrapctl_ed25519
-  # 当 auto_generate=true 时，优先使用并维护这里的专用密钥对
+  # 控制端专用密钥对路径。
+  # 当 auto_generate=true 时，会优先维护这把 key。
   generated_key_path: ~/.ssh/bootstrapctl_ed25519
 
-  # 默认 true
+  # 是否补齐 bastion -> 内网目标节点 的免密链路。
   enable_bastion_hop: true
 
-  # 默认 ~/.ssh/bootstrapctl_ed25519
-  # 该密钥会在跳板机上生成，用于 bastion -> target 的免密
+  # bastion 上专用 key 的路径。
+  # 如果跳板机上不存在这把 key，工具会自动生成。
   bastion_key_path: ~/.ssh/bootstrapctl_ed25519
 
 managed_admin:
-  # 默认 opsadmin
+  # 新运维账号的用户名。
   username: opsadmin
 
-  # 默认 ""
-  # 与 password_hash 二选一；如两者都不填，则只依赖 SSH 公钥登录
+  # 明文密码。
+  # 与 password_hash 二选一；如果都为空，则主要依赖 SSH 公钥登录。
   password: ""
 
-  # 默认 ""
-  # 如已提前生成加密后的 shadow hash，可直接填入
+  # 已加密的 shadow hash。
   password_hash: ""
 
-  # 默认 /bin/bash
+  # 登录 shell。
   shell: /bin/bash
 
-  # 默认 ""
-  # 留空时自动以用户名自身作为主组
+  # 主组。
+  # 留空时默认使用与用户名同名的组。
   primary_group: ""
 
-  # 默认 [sudo, wheel]
+  # 附加组。
   extra_groups:
     - sudo
     - wheel
 
-  # 默认 true
+  # 是否创建 home 目录。
   create_home: true
 
-  # 默认 true
+  # 是否授予 sudo 能力。
   grant_sudo: true
 
-  # 默认 true
-  # 开启后会写入 sudoers，支持 sudo su - 免密进入 root
+  # 是否写入 NOPASSWD sudo 规则。
+  # 开启后，该账号可无密码执行 sudo -n 和 sudo su -。
   sudo_nopasswd: true
 
-  # 默认 true
+  # 是否给新运维账号安装控制端公钥。
   install_controller_public_key: true
 
-  # 默认 ""
-  # 留空时优先复用 ssh_key 解析出的控制端公钥
+  # 指定运维账号要安装的控制端公钥路径。
+  # 留空时会优先复用 ssh_key 解析出的控制端公钥。
   controller_public_key_path: ""
 
-  # 默认 ""
+  # 也可以直接内联公钥。
   controller_public_key: ""
 
-  # 默认 true
+  # 是否关闭 root SSH 直登。
   disable_root_ssh: true
 
-  # 默认 /etc/ssh/sshd_config
+  # sshd 主配置文件路径。
   sshd_config_path: /etc/ssh/sshd_config
 
 firewall:
-  # 默认 iptables
+  # 推荐策略：
+  # - firewalld / ufw 全部停用并禁用
+  # - 最终规则入口统一收口到 iptables
   mode: iptables
-
-  # 默认 true
   manage_firewalld: true
-
-  # 默认 true
   manage_ufw: true
-
-  # 默认 true
   require_iptables: true
 
 kernel_network:
-  # 默认：
-  # - overlay
-  # - br_netfilter
+  # Kubernetes / 容器场景常用内核模块。
   modules:
     - overlay
     - br_netfilter
 
-  # 默认：
-  # net.ipv4.ip_forward: "1"
-  # net.bridge.bridge-nf-call-iptables: "1"
-  # net.bridge.bridge-nf-call-ip6tables: "1"
+  # Kubernetes / CNI 常用 sysctl。
   sysctls:
     net.ipv4.ip_forward: "1"
     net.bridge.bridge-nf-call-iptables: "1"
     net.bridge.bridge-nf-call-ip6tables: "1"
 
 storage:
-  # 默认 /data/graphroot
+  # graphroot 目录。
   graph_root: /data/graphroot
 
-  # 默认 /data/containerd
+  # 容器运行时数据目录。
   cri_root: /data/containerd
 
-  # 默认 /etc/containers/storage.conf
+  # containers/storage.conf 路径。
   storage_conf_path: /etc/containers/storage.conf
 
-  # 默认 /run/containers/storage
+  # runroot 路径。
   run_root: /run/containers/storage
 
-  # 默认 overlay
+  # 存储驱动。
   graph_driver: overlay
 
 ulimit:
-  # 默认 1048576
+  # 文件句柄数上限。
   nofile: 1048576
 
-  # 默认 1048576
+  # 进程数上限。
   nproc: 1048576
