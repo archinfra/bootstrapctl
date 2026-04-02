@@ -1,6 +1,6 @@
 .bootstrapctl-reports/
-bootstrapctl.exe
-bootstrapctl
+/bootstrapctl.exe
+/bootstrapctl
 .configs/
 dist/
 .tmp-managed-admin/
