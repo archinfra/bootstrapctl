@@ -232,6 +232,14 @@ ssh_key:
   # 如果跳板机上不存在这把 key，工具会自动生成。
   bastion_key_path: ~/.ssh/bootstrapctl_ed25519
 
+  # 是否在跳板机上顺手维护 SSH 客户端配置。
+  # 开启后，跳板机上可直接执行 ssh 192.168.x.x，
+  # 不需要再手动追加 -i ~/.ssh/bootstrapctl_ed25519。
+  manage_bastion_ssh_config: true
+
+  # 跳板机上的 SSH 客户端配置文件路径。
+  bastion_ssh_config_path: ~/.ssh/config
+
 managed_admin:
   # 新运维账号的用户名。
   username: opsadmin

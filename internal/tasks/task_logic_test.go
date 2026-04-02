@@ -190,6 +190,62 @@ func TestSSHBastionHopKeyTaskCheckAndApply(t *testing.T) {
 	}
 }
 
+func TestSSHBastionClientConfigTaskCheckAndApply(t *testing.T) {
+	task := &SSHBastionClientConfigTask{
+		TargetNodeSpec: config.NodeConnection{
+			Name:        "amd-node-01",
+			IP:          "192.168.24.4",
+			HostIP:      "192.168.24.4",
+			SSHUser:     "root",
+			SSHPort:     22,
+			SSHPassword: "changeme",
+		},
+		BastionNodeSpec: config.NodeConnection{
+			Name:        "bastion@amd-node-01",
+			IP:          "36.137.200.29",
+			SSHUser:     "root",
+			SSHPort:     22,
+			SSHPassword: "changeme",
+		},
+		BastionKeyPath:       "~/.ssh/bootstrapctl_ed25519",
+		BastionSSHConfigPath: "~/.ssh/config",
+	}
+	block := renderBastionSSHClientConfigBlock(task.TargetNodeSpec, task.BastionKeyPath)
+	if !strings.Contains(block, "IdentityFile ~/.ssh/bootstrapctl_ed25519") {
+		t.Fatalf("expected identity file in bastion ssh config block")
+	}
+	if !strings.Contains(block, "Host amd-node-01 192.168.24.4") {
+		t.Fatalf("expected host aliases in bastion ssh config block")
+	}
+
+	exec := remote.ExecutorFunc(func(ctx context.Context, node config.NodeConnection, script string) (remote.Result, error) {
+		switch {
+		case node.Name == "bastion@amd-node-01" && strings.Contains(script, "cmp -s"):
+			return remote.Result{Output: "CHANGE:/root/.ssh/config\n", ExitCode: 0}, nil
+		case node.Name == "bastion@amd-node-01" && strings.Contains(script, "cp \"$candidate_file\" \"$config_path\""):
+			return remote.Result{Output: "CHANGED:/root/.ssh/config\n", ExitCode: 0}, nil
+		default:
+			return remote.Result{Output: "unexpected", ExitCode: 1}, nil
+		}
+	})
+
+	check, err := task.Check(context.Background(), exec)
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if !check.Needed {
+		t.Fatalf("expected bastion ssh client config to require change")
+	}
+
+	apply, err := task.Apply(context.Background(), exec)
+	if err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if !apply.Changed {
+		t.Fatalf("expected bastion ssh client config apply to report changed")
+	}
+}
+
 func TestManagedAdminUserTaskCheckAndApply(t *testing.T) {
 	task := &ManagedAdminUserTask{
 		NodeSpec:         testNode(),

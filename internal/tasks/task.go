@@ -84,6 +84,14 @@ func Build(inventory config.Inventory, profile config.Profile) []Task {
 					AuthorizedUser:  resolveAuthorizedUser(profile.SSHKey.AuthorizedUser, node.SSHUser),
 					BastionKeyPath:  profile.SSHKey.BastionKeyPath,
 				})
+				if profile.SSHKey.ManageBastionSSHConfigEnabled() {
+					taskList = append(taskList, &SSHBastionClientConfigTask{
+						TargetNodeSpec:       node,
+						BastionNodeSpec:      bastionConnectionForNode(node),
+						BastionKeyPath:       profile.SSHKey.BastionKeyPath,
+						BastionSSHConfigPath: profile.SSHKey.BastionSSHConfigPath,
+					})
+				}
 			}
 		}
 		if profile.Features.ManagedAdminEnabled() {

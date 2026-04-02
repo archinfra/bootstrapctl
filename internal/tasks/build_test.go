@@ -91,12 +91,15 @@ func TestBuildIncludesBastionHopTaskWhenNodeUsesBastion(t *testing.T) {
 
 	var controllerTasks int
 	var hopTasks int
+	var bastionConfigTasks int
 	for _, task := range taskList {
 		switch task.Key() {
 		case "ssh-authorized-key":
 			controllerTasks++
 		case "ssh-bastion-hop-key":
 			hopTasks++
+		case "ssh-bastion-client-config":
+			bastionConfigTasks++
 		}
 	}
 
@@ -105,6 +108,9 @@ func TestBuildIncludesBastionHopTaskWhenNodeUsesBastion(t *testing.T) {
 	}
 	if hopTasks != 1 {
 		t.Fatalf("expected one bastion hop task, got %d", hopTasks)
+	}
+	if bastionConfigTasks != 1 {
+		t.Fatalf("expected one bastion ssh client config task, got %d", bastionConfigTasks)
 	}
 }
 

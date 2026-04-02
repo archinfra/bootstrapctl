@@ -171,6 +171,12 @@ storage:
 	if profile.SSHKey.BastionKeyPath != "~/.ssh/bootstrapctl_ed25519" {
 		t.Fatalf("expected default bastion key path, got %q", profile.SSHKey.BastionKeyPath)
 	}
+	if !profile.SSHKey.ManageBastionSSHConfigEnabled() {
+		t.Fatalf("expected bastion ssh config management to default to enabled")
+	}
+	if profile.SSHKey.BastionSSHConfigPath != "~/.ssh/config" {
+		t.Fatalf("expected default bastion ssh config path, got %q", profile.SSHKey.BastionSSHConfigPath)
+	}
 	if profile.ManagedAdmin.Username != "opsadmin" {
 		t.Fatalf("expected default managed admin username, got %q", profile.ManagedAdmin.Username)
 	}
