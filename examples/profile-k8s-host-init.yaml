@@ -1,0 +1,72 @@
+name: k8s-host-init
+
+features:
+  ssh_connectivity: true
+  ssh_authorized_key: false
+  managed_admin: false
+  hostname: true
+  hosts_file: true
+  disable_swap: true
+  disable_selinux: true
+  firewall: true
+  kernel_network: true
+  storage: true
+  ulimit: true
+
+# ssh_key 只有在 features.ssh_authorized_key=true 时才会生效。
+# 推荐做法：
+# 1. 控制端提前准备好 SSH 公钥
+# 2. 优先把 public_key_path 留空，让工具自动尝试默认公钥
+# 3. 如节点配置了 bastion，则可自动补齐 bastion -> target 的免密
+ssh_key:
+  authorized_user: root
+  public_key_path: ""
+  # public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample bootstrapctl@example
+  enable_bastion_hop: true
+  bastion_key_path: ~/.ssh/bootstrapctl_ed25519
+
+# managed_admin 只有在 features.managed_admin=true 时才会生效。
+# 它适合在“首轮仍使用 root 初始化，后续切换到新运维账号”的场景。
+managed_admin:
+  username: opsadmin
+  password: ""
+  password_hash: ""
+  shell: /bin/bash
+  primary_group: ""
+  extra_groups:
+    - sudo
+    - wheel
+  create_home: true
+  grant_sudo: true
+  sudo_nopasswd: true
+  install_controller_public_key: true
+  controller_public_key_path: ""
+  controller_public_key: ""
+  disable_root_ssh: true
+  sshd_config_path: /etc/ssh/sshd_config
+
+firewall:
+  mode: iptables
+  manage_firewalld: true
+  manage_ufw: true
+  require_iptables: true
+
+kernel_network:
+  modules:
+    - overlay
+    - br_netfilter
+  sysctls:
+    net.ipv4.ip_forward: "1"
+    net.bridge.bridge-nf-call-iptables: "1"
+    net.bridge.bridge-nf-call-ip6tables: "1"
+
+storage:
+  graph_root: /data/graphroot
+  cri_root: /data/containerd
+  storage_conf_path: /etc/containers/storage.conf
+  run_root: /run/containers/storage
+  graph_driver: overlay
+
+ulimit:
+  nofile: 1048576
+  nproc: 1048576

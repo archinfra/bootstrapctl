@@ -1,0 +1,26 @@
+cluster_name: private-baseline
+
+transport:
+  ssh_user: root
+  ssh_port: 22
+  ssh_password: changeme
+  use_sudo: false
+
+nodes:
+  - name: amd-private
+    ip: 192.168.24.4
+    roles: [baseline]
+    bastion:
+      host: 203.0.113.10
+      ssh_user: root
+      ssh_port: 22
+      ssh_password: changeme
+
+  - name: arm-private
+    ip: 192.168.10.3
+    roles: [baseline]
+    bastion:
+      host: 203.0.113.20
+      ssh_user: root
+      ssh_port: 22
+      ssh_password: changeme

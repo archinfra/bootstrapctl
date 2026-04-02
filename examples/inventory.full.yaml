@@ -1,0 +1,72 @@
+# inventory.full.yaml
+#
+# 这是一份“全量字段示例”，不是要求全部填写。
+
+cluster_name: demo-cluster
+
+transport:
+  # 默认 root
+  ssh_user: root
+
+  # 默认 22
+  ssh_port: 22
+
+  # 默认 ""
+  ssh_password: changeme
+
+  # 默认 ""
+  # 如配置了 ssh_private_key，可以不再填写 ssh_password
+  ssh_private_key: ""
+
+  # 默认 false
+  # 当 ssh_user 不是 root，但拥有 sudo 权限时可设为 true
+  use_sudo: false
+
+  # 默认不启用跳板机
+  # 如目标节点只能经由堡垒机访问，可在这里配置 bastion。
+  # bastion 认证字段留空时，会优先继承 transport.bastion.*，再继承 transport.*
+  bastion:
+    host: ""
+    ssh_user: root
+    ssh_port: 22
+    ssh_password: ""
+    ssh_private_key: ""
+
+nodes:
+  - name: amd-master-01
+    ip: 36.137.200.29
+    # host_ip 用于 /etc/hosts、节点互联和主 IP 标识。
+    # 不填写时，bootstrapctl 会在远端执行 hostname -I，并取第一个非回环地址。
+    host_ip: ""
+    roles: [master]
+
+    # 节点级字段留空时，会继承 transport.*
+    ssh_user: root
+    ssh_port: 22
+    ssh_password: changeme
+    ssh_private_key: ""
+    use_sudo: false
+
+    # 节点级 bastion 留空时，会继承 transport.bastion
+    bastion:
+      host: ""
+      ssh_user: root
+      ssh_port: 22
+      ssh_password: ""
+      ssh_private_key: ""
+
+  - name: amd-worker-01
+    ip: 192.168.24.4
+    host_ip: 192.168.24.4
+    roles: [worker]
+    ssh_user: root
+    ssh_port: 22
+    ssh_password: changeme
+    ssh_private_key: ""
+    use_sudo: false
+    bastion:
+      host: 36.137.200.29
+      ssh_user: root
+      ssh_port: 22
+      ssh_password: changeme
+      ssh_private_key: ""

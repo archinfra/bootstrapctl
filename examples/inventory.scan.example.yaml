@@ -1,0 +1,12 @@
+cluster_name: ops-baseline
+
+transport:
+  ssh_user: root
+  ssh_port: 22
+  ssh_password: changeme
+  use_sudo: false
+
+nodes:
+  - name: node-01
+    ip: 192.168.24.5
+    roles: [baseline]

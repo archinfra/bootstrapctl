@@ -1,0 +1,16 @@
+cluster_name: remote-baseline
+
+transport:
+  ssh_user: root
+  ssh_port: 22
+  ssh_password: changeme
+  use_sudo: false
+
+nodes:
+  - name: amd-public
+    ip: 203.0.113.10
+    roles: [baseline]
+
+  - name: arm-public
+    ip: 203.0.113.20
+    roles: [baseline]

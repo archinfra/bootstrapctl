@@ -1,0 +1,43 @@
+name: bootstrapctl-release
+
+on:
+  # 打版本标签时自动产出正式 release 资产。
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Build And Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: 执行单元测试
+        run: go test ./...
+
+      - name: 生成 release 资产
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          chmod +x ./build.sh
+          ./build.sh
+
+      - name: 发布 GitHub Release 资产
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt

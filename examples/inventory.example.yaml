@@ -1,0 +1,16 @@
+cluster_name: demo-k8s
+
+transport:
+  ssh_user: root
+  ssh_port: 22
+  ssh_password: changeme
+  use_sudo: false
+
+nodes:
+  - name: k8s-master01
+    ip: 192.168.24.5
+    roles: [master]
+
+  - name: k8s-node01
+    ip: 192.168.24.4
+    roles: [worker]

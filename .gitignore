@@ -1,0 +1,7 @@
+.bootstrapctl-reports/
+bootstrapctl.exe
+bootstrapctl
+.configs/
+dist/
+.tmp-managed-admin/
+.tmp-ssh-bootstrap/

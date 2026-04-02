@@ -1,0 +1,167 @@
+# profile.full.yaml
+#
+# 这是一份“全量字段示例”，用于展示 bootstrapctl 当前可配置的能力。
+# 真正使用时，可以删掉不需要的字段。
+
+name: k8s-host-init
+
+features:
+  # 默认 true
+  ssh_connectivity: true
+
+  # 默认 false
+  # 开启后会自动做两段免密：
+  # 1. 控制端 -> 目标节点
+  # 2. 如节点配置了 bastion，则补齐 bastion -> 目标节点
+  ssh_authorized_key: false
+
+  # 默认 false
+  # 开启后会创建受控运维账号，并在账号就绪后可选关闭直接 root SSH 登录
+  managed_admin: false
+
+  # 默认 true
+  hostname: true
+
+  # 默认 true
+  hosts_file: true
+
+  # 默认 true
+  disable_swap: true
+
+  # 默认 true
+  disable_selinux: true
+
+  # 默认 true
+  firewall: true
+
+  # 默认 true
+  kernel_network: true
+
+  # 默认 true
+  storage: true
+
+  # 默认 true
+  ulimit: true
+
+ssh_key:
+  # 默认行为：
+  # - 留空时，写入当前节点 ssh_user 对应用户
+  authorized_user: root
+
+  # 留空时会自动尝试控制端默认公钥：
+  # - ~/.ssh/id_ed25519.pub
+  # - ~/.ssh/id_rsa.pub
+  public_key_path: ""
+
+  # 如想直接内联公钥，可在此填写，优先级高于 public_key_path
+  public_key: ""
+
+  # 默认 true
+  enable_bastion_hop: true
+
+  # 默认 ~/.ssh/bootstrapctl_ed25519
+  # 该密钥会在跳板机上生成，用于 bastion -> target 的免密
+  bastion_key_path: ~/.ssh/bootstrapctl_ed25519
+
+managed_admin:
+  # 默认 opsadmin
+  username: opsadmin
+
+  # 默认 ""
+  # 与 password_hash 二选一；如两者都不填，则只依赖 SSH 公钥登录
+  password: ""
+
+  # 默认 ""
+  # 如已提前生成加密后的 shadow hash，可直接填入
+  password_hash: ""
+
+  # 默认 /bin/bash
+  shell: /bin/bash
+
+  # 默认 ""
+  # 留空时自动以用户名自身作为主组
+  primary_group: ""
+
+  # 默认 [sudo, wheel]
+  extra_groups:
+    - sudo
+    - wheel
+
+  # 默认 true
+  create_home: true
+
+  # 默认 true
+  grant_sudo: true
+
+  # 默认 true
+  # 开启后会写入 sudoers，支持 sudo su - 免密进入 root
+  sudo_nopasswd: true
+
+  # 默认 true
+  install_controller_public_key: true
+
+  # 默认 ""
+  # 留空时优先复用 ssh_key 解析出的控制端公钥
+  controller_public_key_path: ""
+
+  # 默认 ""
+  controller_public_key: ""
+
+  # 默认 true
+  disable_root_ssh: true
+
+  # 默认 /etc/ssh/sshd_config
+  sshd_config_path: /etc/ssh/sshd_config
+
+firewall:
+  # 默认 iptables
+  mode: iptables
+
+  # 默认 true
+  manage_firewalld: true
+
+  # 默认 true
+  manage_ufw: true
+
+  # 默认 true
+  require_iptables: true
+
+kernel_network:
+  # 默认：
+  # - overlay
+  # - br_netfilter
+  modules:
+    - overlay
+    - br_netfilter
+
+  # 默认：
+  # net.ipv4.ip_forward: "1"
+  # net.bridge.bridge-nf-call-iptables: "1"
+  # net.bridge.bridge-nf-call-ip6tables: "1"
+  sysctls:
+    net.ipv4.ip_forward: "1"
+    net.bridge.bridge-nf-call-iptables: "1"
+    net.bridge.bridge-nf-call-ip6tables: "1"
+
+storage:
+  # 默认 /data/graphroot
+  graph_root: /data/graphroot
+
+  # 默认 /data/containerd
+  cri_root: /data/containerd
+
+  # 默认 /etc/containers/storage.conf
+  storage_conf_path: /etc/containers/storage.conf
+
+  # 默认 /run/containers/storage
+  run_root: /run/containers/storage
+
+  # 默认 overlay
+  graph_driver: overlay
+
+ulimit:
+  # 默认 1048576
+  nofile: 1048576
+
+  # 默认 1048576
+  nproc: 1048576

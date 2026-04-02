@@ -1,0 +1,52 @@
+# bootstrapctl profile example
+#
+# 这个示例只演示“受控运维账号”这条能力：
+# 1. 创建一个新的运维账号
+# 2. 给它 sudo 权限
+# 3. 允许它通过 `sudo su -` 免密切到 root
+# 4. 关闭远端 root 账号的直接 SSH 登录
+#
+# 推荐先在测试机上单独使用这份 profile 做演练。
+name: managed-admin-only
+
+features:
+  ssh_connectivity: true
+  ssh_authorized_key: false
+  managed_admin: true
+  hostname: false
+  hosts_file: false
+  disable_swap: false
+  disable_selinux: false
+  firewall: false
+  kernel_network: false
+  storage: false
+  ulimit: false
+
+managed_admin:
+  # 受控运维账号名。
+  username: opsadmin
+
+  # 二选一：
+  # - password: 明文密码，适合实验环境
+  # - password_hash: 已加密密码，适合生产环境
+  password: ""
+  password_hash: ""
+
+  shell: /bin/bash
+  primary_group: ""
+  extra_groups:
+    - sudo
+    - wheel
+
+  create_home: true
+  grant_sudo: true
+  sudo_nopasswd: true
+
+  # 是否把当前控制端公钥分发给新账号。
+  install_controller_public_key: true
+  controller_public_key_path: ""
+  controller_public_key: ""
+
+  # 开启后会把远端 sshd 的 PermitRootLogin 收敛到 no。
+  disable_root_ssh: true
+  sshd_config_path: /etc/ssh/sshd_config
