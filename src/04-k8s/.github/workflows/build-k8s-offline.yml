@@ -1,0 +1,73 @@
+name: Build K8s Offline Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - arm64
+        bundle:
+          - full
+          - lite
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Sealos downloads
+        uses: actions/cache@v4
+        with:
+          path: .cache/downloads
+          key: sealos-downloads-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('common/component-versions.env') }}
+          restore-keys: |
+            sealos-downloads-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Ensure executable permissions
+        run: |
+          chmod +x build.sh install.sh
+
+      - name: Build package
+        run: |
+          ./build.sh --arch "${{ matrix.arch }}" --bundle "${{ matrix.bundle }}" --force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-sealos-${{ matrix.arch }}-${{ matrix.bundle }}
+          path: |
+            dist/k8s-sealos-linux-${{ matrix.arch }}-${{ matrix.bundle }}.run
+            dist/k8s-sealos-linux-${{ matrix.arch }}-${{ matrix.bundle }}.run.sha256
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
