@@ -179,25 +179,25 @@ go test ./...
 ### 查看版本
 
 ```bash
-go run ./cmd/bootstrapctl version
+./bootstrapctl version
 ```
 
 ### 本地模板冒烟
 
 ```bash
-go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
+./bootstrapctl init -d ./demo-init -c demo-env
 ```
 
 ### 真机扫描
 
 ```bash
-go run ./cmd/bootstrapctl scan -i ./.configs/inventory.yaml -t 20s
+./bootstrapctl scan -i ./.configs/inventory.yaml -t 20s
 ```
 
 ### 真机规划
 
 ```bash
-go run ./cmd/bootstrapctl plan -i ./.configs/inventory.yaml -p ./.configs/profile.yaml -t 20s
+./bootstrapctl plan -i ./.configs/inventory.yaml -p ./.configs/profile.yaml -t 20s
 ```
 
 ## 构建与发布

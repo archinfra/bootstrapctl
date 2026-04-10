@@ -344,7 +344,7 @@ func (p *Profile) ApplyDefaults() {
 	}
 
 	setBoolDefault(&p.Features.SSHConnectivity, true)
-	setBoolDefault(&p.Features.SSHAuthorizedKey, false)
+	setBoolDefault(&p.Features.SSHAuthorizedKey, true)
 	setBoolDefault(&p.Features.ManagedAdmin, false)
 	setBoolDefault(&p.Features.Hostname, true)
 	setBoolDefault(&p.Features.HostsFile, true)

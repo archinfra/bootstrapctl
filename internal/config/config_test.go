@@ -135,8 +135,8 @@ storage:
 	if !profile.Features.HostnameEnabled() || !profile.Features.HostsFileEnabled() || !profile.Features.UlimitEnabled() {
 		t.Fatalf("expected feature defaults to be enabled")
 	}
-	if profile.Features.SSHAuthorizedKeyEnabled() {
-		t.Fatalf("expected ssh_authorized_key to default to disabled")
+	if !profile.Features.SSHAuthorizedKeyEnabled() {
+		t.Fatalf("expected ssh_authorized_key to default to enabled")
 	}
 	if profile.Features.ManagedAdminEnabled() {
 		t.Fatalf("expected managed_admin to default to disabled")

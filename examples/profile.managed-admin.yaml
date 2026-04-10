@@ -11,7 +11,7 @@ name: managed-admin-only
 
 features:
   ssh_connectivity: true
-  ssh_authorized_key: false
+  ssh_authorized_key: true
   managed_admin: true
   hostname: false
   hosts_file: false

@@ -36,10 +36,28 @@
 
 ## 标准使用流程
 
+### 0. 构建可执行文件
+
+如果你已经下载了仓库并希望使用发布形态，推荐先构建本地二进制：
+
+```bash
+./build.sh
+```
+
+完成后可以直接使用构建出的可执行文件：
+
+```bash
+cp dist/linux-amd64/bootstrapctl ./bootstrapctl
+chmod +x ./bootstrapctl
+./bootstrapctl init -d ./demo-init -c demo-env
+```
+
+如果你只是想在开发环境中快速验证，也可以直接使用 `go run`，但正式使用场景推荐优先使用二进制包。
+
 ### 1. 生成模板
 
 ```bash
-go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
+./bootstrapctl init -d ./demo-init -c demo-env
 ```
 
 `init` 生成的是完整体模板，不是简化版占位文件：
@@ -79,25 +97,25 @@ nodes:
 ### 4. 先扫描
 
 ```bash
-go run ./cmd/bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
+./bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
 ```
 
 ### 5. 再规划
 
 ```bash
-go run ./cmd/bootstrapctl plan -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
+./bootstrapctl plan -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
 ```
 
 ### 6. 正式执行
 
 ```bash
-go run ./cmd/bootstrapctl apply -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
+./bootstrapctl apply -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
 ```
 
 ### 7. 最终校验
 
 ```bash
-go run ./cmd/bootstrapctl verify -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
+./bootstrapctl verify -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
 ```
 
 ## ops-environment.sh 自动同步规则
@@ -220,7 +238,7 @@ managed_admin:
 先执行：
 
 ```bash
-go run ./cmd/bootstrapctl apply -i ./inventory.root.yaml -p ./profile.managed-admin.yaml -t 20s
+./bootstrapctl apply -i ./inventory.root.yaml -p ./profile.managed-admin.yaml -t 20s
 ```
 
 第二步把 inventory 切换为普通用户，例如：
@@ -235,9 +253,9 @@ transport:
 再用普通账号执行完整 profile：
 
 ```bash
-go run ./cmd/bootstrapctl plan -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
-go run ./cmd/bootstrapctl apply -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
-go run ./cmd/bootstrapctl verify -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
+./bootstrapctl plan -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
+./bootstrapctl apply -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
+./bootstrapctl verify -i ./inventory.sudo.yaml -p ./profile.yaml -t 20s
 ```
 
 ## profile 关键策略说明

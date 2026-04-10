@@ -17,7 +17,7 @@ features:
   # 注意：
   # - bastion -> 内网节点 这条链路，已经独立由 enable_bastion_hop 控制
   # - 所以即使这里关闭，像 master1 -> node1 这种主节点到私网节点的免密仍可单独生效
-  ssh_authorized_key: false
+  ssh_authorized_key: true
 
   # 是否启用“受控运维账号”能力。
   # 开启后可以：

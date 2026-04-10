@@ -70,10 +70,37 @@
 
 ## 快速开始
 
+### 0. 构建二进制包
+
+推荐先从仓库根目录构建可执行二进制包：
+
+```bash
+./build.sh
+```
+
+这会在 `dist/linux-amd64/bootstrapctl`（或 `dist/linux-arm64/bootstrapctl`）生成可执行文件。你也可以直接构建单个本地可执行文件：
+
+```bash
+go build -trimpath -ldflags "-s -w -X github.com/yuanyp8/bootstrapctl/internal/app.version=dev" -o ./bootstrapctl ./cmd/bootstrapctl
+```
+
+后续示例统一使用当前目录中的可执行文件：
+
+```bash
+./bootstrapctl ...
+```
+
+如果你使用 `build.sh` 生成了 `dist/linux-amd64/bootstrapctl`，可直接复制到当前目录：
+
+```bash
+cp dist/linux-amd64/bootstrapctl ./bootstrapctl
+chmod +x ./bootstrapctl
+```
+
 ### 1. 初始化一套模板
 
 ```bash
-go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
+./bootstrapctl init -d ./demo-init -c demo-env
 ```
 
 会生成：
@@ -92,7 +119,7 @@ go run ./cmd/bootstrapctl init -d ./demo-init -c demo-env
 ### 2. 先做基线扫描
 
 ```bash
-go run ./cmd/bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
+./bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
 ```
 
 ### 2.1 如果旧脚本还依赖 ops-env，可在补齐 inventory 后导出兼容文件
@@ -113,7 +140,7 @@ go run ./cmd/bootstrapctl scan -i ./demo-init/inventory.yaml -t 20s
 当你需要兼容旧 Shell 工具时，例如 `02-lvm/lvm.sh`，在 inventory 补齐后手动导出一次即可：
 
 ```bash
-go run ./cmd/bootstrapctl export-ops-env -i ./demo-init/inventory.yaml -o ./ops-environment.sh
+./bootstrapctl export-ops-env -i ./demo-init/inventory.yaml -o ./ops-environment.sh
 ```
 
 这条命令适合两类场景：
@@ -135,19 +162,19 @@ go run ./cmd/bootstrapctl export-ops-env -i ./demo-init/inventory.yaml -o ./ops-
 ### 3. 看规划，不落变更
 
 ```bash
-go run ./cmd/bootstrapctl plan -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
+./bootstrapctl plan -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
 ```
 
 ### 4. 正式执行初始化
 
 ```bash
-go run ./cmd/bootstrapctl apply -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
+./bootstrapctl apply -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
 ```
 
 ### 5. 做最终校验
 
 ```bash
-go run ./cmd/bootstrapctl verify -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
+./bootstrapctl verify -i ./demo-init/inventory.yaml -p ./demo-init/profile.yaml -t 20s
 ```
 
 ## 配置模型
@@ -269,7 +296,9 @@ bootstrapctl/
 
 ```bash
 go test ./...
-go run ./cmd/bootstrapctl version
+# 构建单个本地可执行文件，然后查看版本
+go build -o ./bootstrapctl ./cmd/bootstrapctl
+./bootstrapctl version
 ```
 
 ## 构建与发布
