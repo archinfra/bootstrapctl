@@ -25,8 +25,8 @@ func TestBuildGeneratesExpectedTasks(t *testing.T) {
 	profile.ApplyDefaults()
 
 	taskList := Build(inventory, profile)
-	if len(taskList) != 18 {
-		t.Fatalf("expected 18 tasks for 2 nodes with 9 tasks each, got %d", len(taskList))
+	if len(taskList) != 22 {
+		t.Fatalf("expected 22 tasks for 2 nodes with 11 tasks each, got %d", len(taskList))
 	}
 }
 
