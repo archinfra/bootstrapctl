@@ -667,7 +667,7 @@ func parseLifecycleFlags(console *ui.Console, command string, args []string) (li
 		if defaultPath, ok := findDefaultInventoryPath(cwd); ok {
 			options.InventoryPath = defaultPath
 		} else {
-			console.Error(defaultInventoryHint())
+			console.Error("%s", defaultInventoryHint())
 			return options, false
 		}
 	}
@@ -715,7 +715,7 @@ func parseScanFlags(console *ui.Console, args []string) (scanOptions, bool) {
 		if defaultPath, ok := findDefaultInventoryPath(cwd); ok {
 			options.InventoryPath = defaultPath
 		} else {
-			console.Error(defaultInventoryHint())
+			console.Error("%s", defaultInventoryHint())
 			return options, false
 		}
 	}
@@ -816,7 +816,7 @@ func parseDoctorFlags(console *ui.Console, args []string) (doctorOptions, bool) 
 		if defaultPath, ok := findDefaultInventoryPath(cwd); ok {
 			options.InventoryPath = defaultPath
 		} else {
-			console.Error(defaultInventoryHint())
+			console.Error("%s", defaultInventoryHint())
 			return options, false
 		}
 	}
