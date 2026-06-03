@@ -197,7 +197,7 @@ go test ./...
 ### 真机规划
 
 ```bash
-./bootstrapctl plan -i ./.configs/inventory.yaml -p ./.configs/profile.yaml -t 20s
+./bootstrapctl plan -i ./.configs/inventory.yaml --profile ./.configs/profile.yaml -t 20s
 ```
 
 ## 构建与发布

@@ -24,6 +24,10 @@ transport:
   # 留空表示优先使用密码。
   ssh_private_key: ""
 
+  # 兼容旧脚本的 SSH 密钥认证/免密准备开关。
+  # 这里默认写 yes，而不是 true，贴近 ops-environment.sh 的使用习惯。
+  ssh_auth: yes
+
   # 是否在远端命令执行时统一使用 sudo。
   # 典型场景是：
   # - ssh_user 不是 root
@@ -41,7 +45,7 @@ transport:
     ssh_private_key: ""
 
 nodes:
-  - name: node-01
+  - hostname: node-01
     # ip 用于 SSH 连接入口。
     # 对公网节点，这里通常填公网 IP。
     ip: 192.168.24.5
@@ -55,8 +59,8 @@ nodes:
     # 并选择第一个非回环地址。
     host_ip: ""
 
-    # 角色是逻辑标签，不强制与 Kubernetes 绑定。
-    # 单机场景可以写 [single]。
+    # roles 是高级兼容字段；普通客户不用填。
+    # 需要对接旧脚本或做逻辑标签时再启用。
     roles: [single]
 
     # 节点级 SSH 参数。
@@ -65,6 +69,7 @@ nodes:
     ssh_port: 22
     ssh_password: ""
     ssh_private_key: ""
+    ssh_auth: yes
     use_sudo: false
 
     # 节点级跳板机。
@@ -80,14 +85,16 @@ nodes:
       ssh_password: ""
       ssh_private_key: ""
 
-  - name: node-02
+  - hostname: node-02
     ip: 192.168.24.6
     host_ip: ""
+    # roles 是高级兼容字段；普通客户不用填。
     roles: [worker]
     ssh_user: root
     ssh_port: 22
     ssh_password: ""
     ssh_private_key: ""
+    ssh_auth: yes
     use_sudo: false
     bastion:
       host: ""

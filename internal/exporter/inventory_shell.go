@@ -31,6 +31,9 @@ func RenderInventoryShell(inventory config.Inventory) string {
 	fmt.Fprintln(builder, "# 如需更新，请重新执行 scan / plan / apply / verify 或 export-ops-env。")
 	fmt.Fprintln(builder, "# 建议放置路径：/etc/profile.d/ops-environment.sh")
 	fmt.Fprintln(builder)
+	fmt.Fprintln(builder, "# SSH 密钥认证/免密准备开关（兼容旧脚本，默认 yes）")
+	fmt.Fprintf(builder, "export SSH_AUTH=%s\n", shellValue(defaultSSHAuth(inventory)))
+	fmt.Fprintln(builder)
 	fmt.Fprintln(builder, "# 集群各机器 IP 数组")
 	fmt.Fprintf(builder, "export NODE_IPS=(%s)\n", joinShellValues(nodeIPs))
 	fmt.Fprintln(builder)
@@ -59,6 +62,14 @@ func shellValue(value string) string {
 	}
 	if strings.ContainsAny(value, " \t'\"") {
 		return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+	}
+	return value
+}
+
+func defaultSSHAuth(inventory config.Inventory) string {
+	value := strings.TrimSpace(inventory.Transport.SSHAuth)
+	if value == "" {
+		return "yes"
 	}
 	return value
 }

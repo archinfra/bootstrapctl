@@ -31,6 +31,7 @@ type Transport struct {
 	SSHPort       int      `yaml:"ssh_port"`
 	SSHPassword   string   `yaml:"ssh_password"`
 	SSHPrivateKey string   `yaml:"ssh_private_key"`
+	SSHAuth       string   `yaml:"ssh_auth"`
 	UseSudo       bool     `yaml:"use_sudo"`
 	Bastion       *Bastion `yaml:"bastion"`
 }
@@ -46,7 +47,9 @@ type Bastion struct {
 
 // Node 描述单台目标节点。
 type Node struct {
+	// Name 是运行时主机名。YAML 中兼容旧字段 name，也支持更直观的 hostname。
 	Name          string   `yaml:"name"`
+	Hostname      string   `yaml:"hostname"`
 	IP            string   `yaml:"ip"`
 	HostIP        string   `yaml:"host_ip"`
 	Roles         []string `yaml:"roles"`
@@ -54,6 +57,7 @@ type Node struct {
 	SSHPort       int      `yaml:"ssh_port"`
 	SSHPassword   string   `yaml:"ssh_password"`
 	SSHPrivateKey string   `yaml:"ssh_private_key"`
+	SSHAuth       string   `yaml:"ssh_auth"`
 	UseSudo       *bool    `yaml:"use_sudo"`
 	Bastion       *Bastion `yaml:"bastion"`
 }
@@ -61,6 +65,7 @@ type Node struct {
 // NodeConnection 是应用默认值后的运行时连接视图。
 type NodeConnection struct {
 	Name          string
+	Hostname      string
 	IP            string
 	HostIP        string
 	Roles         []string
@@ -68,6 +73,7 @@ type NodeConnection struct {
 	SSHPort       int
 	SSHPassword   string
 	SSHPrivateKey string
+	SSHAuth       string
 	UseSudo       bool
 	Bastion       *Bastion
 }
@@ -167,6 +173,18 @@ type FirewallPolicy struct {
 	RequireIPTables *bool  `yaml:"require_iptables"`
 }
 
+// DefaultProfile 返回内置默认初始化策略。
+// 这让 plan/apply/verify 可以在不传 profile.yaml 的情况下直接运行，
+// 把“完整 profile 文件”从必填输入降级为高级覆盖项。
+func DefaultProfile() (Profile, error) {
+	profile := Profile{}
+	profile.ApplyDefaults()
+	if err := profile.ResolveRuntime(); err != nil {
+		return profile, err
+	}
+	return profile, profile.Validate()
+}
+
 // LoadInventory 读取并校验 inventory。
 func LoadInventory(path string) (Inventory, error) {
 	var inventory Inventory
@@ -175,7 +193,7 @@ func LoadInventory(path string) (Inventory, error) {
 	if err != nil {
 		return inventory, fmt.Errorf("读取 inventory 失败: %w", err)
 	}
-	if err := yaml.Unmarshal(content, &inventory); err != nil {
+	if err := decodeYAMLWithBoolAliases(content, &inventory); err != nil {
 		return inventory, fmt.Errorf("解析 inventory 失败: %w", err)
 	}
 
@@ -194,7 +212,7 @@ func LoadProfile(path string) (Profile, error) {
 	if err != nil {
 		return profile, fmt.Errorf("读取 profile 失败: %w", err)
 	}
-	if err := yaml.Unmarshal(content, &profile); err != nil {
+	if err := decodeYAMLWithBoolAliases(content, &profile); err != nil {
 		return profile, fmt.Errorf("解析 profile 失败: %w", err)
 	}
 
@@ -216,12 +234,19 @@ func (i *Inventory) ApplyDefaults() {
 	if i.Transport.SSHPort == 0 {
 		i.Transport.SSHPort = 22
 	}
+	i.Transport.SSHAuth = normalizeSSHAuth(i.Transport.SSHAuth)
 	if i.Transport.Bastion != nil {
 		applyBastionDefaults(i.Transport.Bastion, i.Transport)
 	}
 
 	for idx := range i.Nodes {
 		node := &i.Nodes[idx]
+		if strings.TrimSpace(node.Name) == "" && strings.TrimSpace(node.Hostname) != "" {
+			node.Name = strings.TrimSpace(node.Hostname)
+		}
+		if strings.TrimSpace(node.Hostname) == "" && strings.TrimSpace(node.Name) != "" {
+			node.Hostname = strings.TrimSpace(node.Name)
+		}
 		if node.SSHUser == "" {
 			node.SSHUser = i.Transport.SSHUser
 		}
@@ -234,6 +259,11 @@ func (i *Inventory) ApplyDefaults() {
 		if node.SSHPrivateKey == "" {
 			node.SSHPrivateKey = i.Transport.SSHPrivateKey
 		}
+		if node.SSHAuth == "" {
+			node.SSHAuth = i.Transport.SSHAuth
+		} else {
+			node.SSHAuth = normalizeSSHAuth(node.SSHAuth)
+		}
 		if node.UseSudo == nil {
 			useSudo := i.Transport.UseSudo
 			node.UseSudo = &useSudo
@@ -245,6 +275,106 @@ func (i *Inventory) ApplyDefaults() {
 		if node.Bastion != nil {
 			applyBastionDefaults(node.Bastion, i.Transport)
 		}
+	}
+}
+
+func normalizeSSHAuth(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "yes", "true", "on", "1":
+		return "yes"
+	case "no", "false", "off", "0":
+		return "no"
+	default:
+		return strings.TrimSpace(value)
+	}
+}
+
+// decodeYAMLWithBoolAliases 在正式解码前标准化常见运维写法。
+//
+// Go YAML 解析库对 YAML 1.1 / 1.2 的 yes/no/on/off 兼容性容易让用户踩坑：
+// 模板里写 ssh_authorized_key: yes 看起来更自然，但不同解析规则下可能被当成字符串。
+// 这里仅对明确的布尔字段做标准化，不影响 inventory.transport.ssh_auth 这种字符串字段。
+func decodeYAMLWithBoolAliases(content []byte, out any) error {
+	var root yaml.Node
+	if err := yaml.Unmarshal(content, &root); err != nil {
+		return err
+	}
+	normalizeYAMLBoolAliasNodes(&root, "")
+	return root.Decode(out)
+}
+
+func normalizeYAMLBoolAliasNodes(node *yaml.Node, key string) {
+	if node == nil {
+		return
+	}
+
+	switch node.Kind {
+	case yaml.DocumentNode:
+		for _, child := range node.Content {
+			normalizeYAMLBoolAliasNodes(child, key)
+		}
+	case yaml.MappingNode:
+		for idx := 0; idx+1 < len(node.Content); idx += 2 {
+			keyNode := node.Content[idx]
+			valueNode := node.Content[idx+1]
+			normalizeYAMLBoolAliasNodes(valueNode, keyNode.Value)
+		}
+	case yaml.SequenceNode:
+		for _, child := range node.Content {
+			normalizeYAMLBoolAliasNodes(child, key)
+		}
+	case yaml.ScalarNode:
+		if normalized, ok := normalizeBoolAliasScalar(key, node.Value); ok {
+			node.Tag = "!!bool"
+			node.Value = normalized
+		}
+	}
+}
+
+func normalizeBoolAliasScalar(key string, value string) (string, bool) {
+	if !isBoolAliasKey(key) {
+		return "", false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes", "true", "on", "1":
+		return "true", true
+	case "no", "false", "off", "0":
+		return "false", true
+	default:
+		return "", false
+	}
+}
+
+func isBoolAliasKey(key string) bool {
+	switch strings.TrimSpace(key) {
+	case "use_sudo",
+		"ssh_connectivity",
+		"ssh_authorized_key",
+		"managed_admin",
+		"hostname",
+		"hosts_file",
+		"disable_swap",
+		"disable_selinux",
+		"firewall",
+		"kernel_network",
+		"storage",
+		"ulimit",
+		"auto_generate",
+		"manage_controller_ssh_config",
+		"enable_bastion_hop",
+		"manage_bastion_ssh_config",
+		"create_home",
+		"grant_sudo",
+		"sudo_nopasswd",
+		"install_controller_public_key",
+		"disable_root_ssh",
+		"manage_firewalld",
+		"manage_ufw",
+		"require_iptables":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -316,6 +446,7 @@ func (i Inventory) ResolveNodes() []NodeConnection {
 	for _, node := range i.Nodes {
 		resolved = append(resolved, NodeConnection{
 			Name:          node.Name,
+			Hostname:      node.Hostname,
 			IP:            node.IP,
 			HostIP:        node.HostIP,
 			Roles:         append([]string(nil), node.Roles...),
@@ -323,6 +454,7 @@ func (i Inventory) ResolveNodes() []NodeConnection {
 			SSHPort:       node.SSHPort,
 			SSHPassword:   node.SSHPassword,
 			SSHPrivateKey: node.SSHPrivateKey,
+			SSHAuth:       node.SSHAuth,
 			UseSudo:       node.UseSudo != nil && *node.UseSudo,
 			Bastion:       node.Bastion,
 		})

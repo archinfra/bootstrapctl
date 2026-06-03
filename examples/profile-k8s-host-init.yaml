@@ -2,7 +2,7 @@ name: k8s-host-init
 
 features:
   ssh_connectivity: true
-  ssh_authorized_key: true
+  ssh_authorized_key: yes
   managed_admin: false
   hostname: true
   hosts_file: true
@@ -13,7 +13,7 @@ features:
   storage: true
   ulimit: true
 
-# ssh_key 只有在 features.ssh_authorized_key=true 时才会生效。
+# ssh_key 只有在 features.ssh_authorized_key=yes 时才会生效。
 # 推荐做法：
 # 1. 控制端可提前准备 SSH 公钥；如果没有，也可以让 bootstrapctl 自动生成专用 key
 # 2. 推荐把 public_key_path 留空，让工具优先使用 generated_key_path 的专用 key

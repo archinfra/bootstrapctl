@@ -1,16 +1,16 @@
+# bootstrapctl inventory 最小示例
+#
+# 客户第一次使用时，只需要改账号、密码、hostname、IP。
+# ssh_port 默认 22，use_sudo 默认 false，roles/profile 都不是必填项。
 cluster_name: demo-k8s
 
 transport:
   ssh_user: root
-  ssh_port: 22
   ssh_password: changeme
-  use_sudo: false
 
 nodes:
-  - name: k8s-master01
+  - hostname: k8s-master01
     ip: 192.168.24.5
-    roles: [master]
 
-  - name: k8s-node01
+  - hostname: k8s-node01
     ip: 192.168.24.4
-    roles: [worker]

@@ -38,8 +38,36 @@ nodes:
 	if node.SSHPassword != "changeme" {
 		t.Fatalf("expected inherited password")
 	}
+	if node.SSHAuth != "yes" {
+		t.Fatalf("expected ssh_auth to default to yes, got %q", node.SSHAuth)
+	}
 	if node.HostIP != "" {
 		t.Fatalf("expected host_ip to default empty, got %q", node.HostIP)
+	}
+}
+
+func TestLoadInventoryAcceptsHostnameField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "inventory.yaml")
+	content := `
+cluster_name: demo
+transport:
+  ssh_password: changeme
+nodes:
+  - hostname: node-01
+    ip: 192.168.1.10
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write inventory: %v", err)
+	}
+
+	inventory, err := LoadInventory(path)
+	if err != nil {
+		t.Fatalf("LoadInventory() error = %v", err)
+	}
+	node := inventory.ResolveNodes()[0]
+	if node.Name != "node-01" || node.Hostname != "node-01" {
+		t.Fatalf("expected hostname to populate node name, got %#v", node)
 	}
 }
 
@@ -194,7 +222,7 @@ func TestLoadProfileSSHAuthorizedKeyFromInline(t *testing.T) {
 	content := `
 name: test
 features:
-  ssh_authorized_key: true
+  ssh_authorized_key: yes
 ssh_key:
   authorized_user: root
   public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBootstrapCtlExampleKey bootstrapctl@example
@@ -226,7 +254,7 @@ func TestLoadProfileSSHAuthorizedKeyAutoGeneratesDedicatedKey(t *testing.T) {
 	content := `
 name: test
 features:
-  ssh_authorized_key: true
+  ssh_authorized_key: yes
 ssh_key:
   authorized_user: root
   auto_generate: true
@@ -262,7 +290,7 @@ func TestLoadProfileSSHAuthorizedKeyAutoGeneratesAtExplicitPublicKeyPath(t *test
 	content := `
 name: test
 features:
-  ssh_authorized_key: true
+  ssh_authorized_key: yes
 ssh_key:
   authorized_user: root
   auto_generate: true
@@ -345,5 +373,71 @@ managed_admin:
 	}
 	if profile.ManagedAdmin.ResolvedPublicKey != "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIManagedAdminKey bootstrapctl@example" {
 		t.Fatalf("unexpected resolved managed admin public key: %q", profile.ManagedAdmin.ResolvedPublicKey)
+	}
+}
+
+func TestLoadInventoryAcceptsBoolAliasesForUseSudo(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "inventory.yaml")
+	content := `
+cluster_name: demo
+transport:
+  ssh_password: changeme
+  use_sudo: yes
+nodes:
+  - name: host01
+    ip: 192.168.1.10
+    roles: [single]
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write inventory: %v", err)
+	}
+
+	inventory, err := LoadInventory(path)
+	if err != nil {
+		t.Fatalf("LoadInventory() error = %v", err)
+	}
+	if !inventory.ResolveNodes()[0].UseSudo {
+		t.Fatalf("expected use_sudo: yes to decode as true")
+	}
+}
+
+func TestLoadProfileAcceptsBoolAliases(t *testing.T) {
+	dir := t.TempDir()
+	generatedPath := filepath.Join(dir, "bootstrapctl_ed25519")
+	path := filepath.Join(dir, "profile.yaml")
+	content := `
+name: test
+features:
+  ssh_authorized_key: yes
+  managed_admin: no
+ssh_key:
+  auto_generate: yes
+  manage_controller_ssh_config: no
+  generated_key_path: ` + generatedPath + `
+firewall:
+  manage_firewalld: on
+  manage_ufw: off
+  require_iptables: 1
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+
+	profile, err := LoadProfile(path)
+	if err != nil {
+		t.Fatalf("LoadProfile() error = %v", err)
+	}
+	if !profile.Features.SSHAuthorizedKeyEnabled() {
+		t.Fatalf("expected ssh_authorized_key: yes to decode as true")
+	}
+	if profile.Features.ManagedAdminEnabled() {
+		t.Fatalf("expected managed_admin: no to decode as false")
+	}
+	if profile.SSHKey.ManageControllerSSHConfigEnabled() {
+		t.Fatalf("expected manage_controller_ssh_config: no to decode as false")
+	}
+	if !profile.Firewall.ManageFirewalldEnabled() || profile.Firewall.ManageUFWEnabled() || !profile.Firewall.RequireIPTablesEnabled() {
+		t.Fatalf("unexpected firewall bool aliases: %#v", profile.Firewall)
 	}
 }

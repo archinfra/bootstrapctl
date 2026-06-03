@@ -34,6 +34,7 @@ func TestRenderInventoryShell(t *testing.T) {
 	content := RenderInventoryShell(inventory)
 
 	assertContains(t, content, "#!/bin/bash")
+	assertContains(t, content, "export SSH_AUTH=yes")
 	assertContains(t, content, "export NODE_IPS=(10.120.103.6 10.120.103.7)")
 	assertContains(t, content, "export NODE_NAMES=(sichuan-master1 sichuan-node1)")
 	assertContains(t, content, "export MOUNT_DIR=/data")

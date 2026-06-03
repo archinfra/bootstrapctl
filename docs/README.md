@@ -29,7 +29,7 @@
 
 - 文件：[02-usage.md](./02-usage.md)
 - 内容：
-  - `init / scan / plan / apply / verify`
+  - `init / apply / check / scan / plan / verify`
   - 单机场景
   - 跳板机场景
   - 受控运维账号场景

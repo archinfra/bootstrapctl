@@ -14,6 +14,7 @@ type InitOptions struct {
 	Inventory   string
 	Profile     string
 	Force       bool
+	Advanced    bool
 }
 
 // InitResult 返回实际生成的模板路径，便于 CLI 输出下一步提示。
@@ -22,9 +23,9 @@ type InitResult struct {
 	ProfilePath   string
 }
 
-// WriteTemplates 根据用户指定目录生成 inventory/profile 模板。
-// 这里刻意只生成“可编辑模板”，不直接导出 ops-environment.sh，
-// 因为用户此时通常还没把真实节点和认证信息补齐。
+// WriteTemplates 根据用户指定目录生成模板。
+// 默认只生成最小 inventory，profile 改为内置默认值；
+// 当用户显式使用 Advanced 时，再生成完整 inventory/profile。
 func WriteTemplates(options InitOptions) (InitResult, error) {
 	inventoryPath := filepath.Join(options.Dir, options.Inventory)
 	profilePath := filepath.Join(options.Dir, options.Profile)
@@ -37,26 +38,97 @@ func WriteTemplates(options InitOptions) (InitResult, error) {
 		if _, err := os.Stat(inventoryPath); err == nil {
 			return InitResult{}, fmt.Errorf("inventory 模板已存在: %s", inventoryPath)
 		}
-		if _, err := os.Stat(profilePath); err == nil {
-			return InitResult{}, fmt.Errorf("profile 模板已存在: %s", profilePath)
+		if options.Advanced {
+			if _, err := os.Stat(profilePath); err == nil {
+				return InitResult{}, fmt.Errorf("profile 模板已存在: %s", profilePath)
+			}
 		}
 	}
 
-	inventoryContent := renderInventory(options.ClusterName)
+	inventoryContent := renderSimpleInventory(options.ClusterName)
+	if options.Advanced {
+		inventoryContent = renderInventoryFull(options.ClusterName)
+	}
 	if err := os.WriteFile(inventoryPath, []byte(inventoryContent), 0o644); err != nil {
 		return InitResult{}, fmt.Errorf("写入 inventory 模板失败: %w", err)
 	}
-	if err := os.WriteFile(profilePath, []byte(renderProfile()), 0o644); err != nil {
-		return InitResult{}, fmt.Errorf("写入 profile 模板失败: %w", err)
+
+	result := InitResult{InventoryPath: inventoryPath}
+	if options.Advanced {
+		if err := os.WriteFile(profilePath, []byte(renderProfile()), 0o644); err != nil {
+			return InitResult{}, fmt.Errorf("写入 profile 模板失败: %w", err)
+		}
+		result.ProfilePath = profilePath
 	}
 
-	return InitResult{
-		InventoryPath: inventoryPath,
-		ProfilePath:   profilePath,
-	}, nil
+	return result, nil
 }
 
-func renderInventory(clusterName string) string {
+func renderSimpleInventory(clusterName string) string {
+	template := `# bootstrapctl 配置文件
+#
+# 使用方式：
+#   1. 先改最上面的账号、密码、hostname、ip
+#   2. 然后执行：./bootstrapctl apply
+#
+# 常规客户只需要改【常改区】；下面的【默认区】只是说明，通常不用动。
+
+# =========================
+# 常改区：优先只改这里
+# =========================
+
+# 环境名 / 批次名，随便起一个好识别的名字即可。
+cluster_name: __CLUSTER_NAME__
+
+# SSH 登录信息。默认用 root；只需要把密码改成真实密码。
+transport:
+  ssh_user: root
+  ssh_password: changeme
+
+# 目标主机。hostname 是你希望设置/识别的主机名，ip 是 SSH 连接地址。
+nodes:
+  - hostname: node-01
+    ip: 192.168.1.10
+
+  # 多台机器就继续往下加：
+  # - hostname: node-02
+  #   ip: 192.168.1.11
+
+# =========================
+# 默认区：一般不用改，需要时再取消注释
+# =========================
+
+# SSH 默认值：
+# transport:
+#   ssh_port: 22              # 默认 22，不用写
+#   ssh_private_key: ""       # 使用私钥登录时再填
+#   ssh_auth: yes             # 兼容旧脚本的免密开关，默认 yes
+#   use_sudo: false           # root 登录默认 false；普通 sudo 用户才改 true
+#
+# 节点高级字段：
+# nodes:
+#   - hostname: node-01
+#     ip: 192.168.1.10
+#     host_ip: ""             # 内网主 IP；留空会自动探测
+#     ssh_user: ""            # 节点级覆盖；留空继承 transport.ssh_user
+#     ssh_password: ""        # 节点级覆盖；留空继承 transport.ssh_password
+#     ssh_port: 22             # 节点级覆盖；默认 22
+#     ssh_private_key: ""      # 节点级私钥
+#     use_sudo: false          # 节点级 sudo 开关
+#
+# 跳板机场景才需要：
+# transport:
+#   bastion:
+#     host: 1.2.3.4
+#     ssh_user: root
+#     ssh_port: 22
+#     ssh_password: changeme
+#     ssh_private_key: ""
+`
+	return strings.ReplaceAll(template, "__CLUSTER_NAME__", clusterName)
+}
+
+func renderInventoryFull(clusterName string) string {
 	template := `# bootstrapctl inventory 完整模板
 #
 # inventory 负责回答两个问题：
@@ -83,6 +155,10 @@ transport:
   # 留空表示优先使用密码。
   ssh_private_key: ""
 
+  # 兼容旧脚本的 SSH 密钥认证/免密准备开关。
+  # 这里默认写 yes，而不是 true，贴近 ops-environment.sh 的使用习惯。
+  ssh_auth: yes
+
   # 是否在远端命令执行时统一使用 sudo。
   # 典型场景是：
   # - ssh_user 不是 root
@@ -100,7 +176,8 @@ transport:
     ssh_private_key: ""
 
 nodes:
-  - name: node-01
+  - hostname: node-01
+    # 也兼容旧字段 name: node-01。
     # ip 用于 SSH 连接入口。
     # 对公网节点，这里通常填公网 IP。
     ip: 192.168.24.5
@@ -114,8 +191,8 @@ nodes:
     # 并选择第一个非回环地址。
     host_ip: ""
 
-    # 角色是逻辑标签，不强制与 Kubernetes 绑定。
-    # 单机场景可以写 [single]。
+    # roles 是高级兼容字段；普通客户不用填。
+    # 需要对接旧脚本或做逻辑标签时再启用。
     roles: [single]
 
     # 节点级 SSH 参数。
@@ -124,6 +201,7 @@ nodes:
     ssh_port: 22
     ssh_password: ""
     ssh_private_key: ""
+    ssh_auth: yes
     use_sudo: false
 
     # 节点级跳板机。
@@ -139,14 +217,16 @@ nodes:
       ssh_password: ""
       ssh_private_key: ""
 
-  - name: node-02
+  - hostname: node-02
     ip: 192.168.24.6
     host_ip: ""
+    # roles 是高级兼容字段；普通客户不用填。
     roles: [worker]
     ssh_user: root
     ssh_port: 22
     ssh_password: ""
     ssh_private_key: ""
+    ssh_auth: yes
     use_sudo: false
     bastion:
       host: ""
@@ -178,7 +258,7 @@ features:
   # 注意：
   # - bastion -> 内网节点 这条链路，已经独立由 enable_bastion_hop 控制
   # - 所以即使这里关闭，像 master1 -> node1 这种主节点到私网节点的免密仍可单独生效
-  ssh_authorized_key: true
+  ssh_authorized_key: yes
 
   # 是否启用“受控运维账号”能力。
   # 开启后可以：

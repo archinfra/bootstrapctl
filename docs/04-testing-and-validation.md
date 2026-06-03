@@ -111,7 +111,7 @@ go test ./...
 ### root 引导受控运维账号
 
 ```bash
-go run ./cmd/bootstrapctl apply -i ./.configs/inventory.yaml -p ./.configs/profile.managed-admin.yaml -t 20s
+go run ./cmd/bootstrapctl apply -i ./.configs/inventory.yaml --profile ./.configs/profile.managed-admin.yaml -t 20s
 ```
 
 ### 普通 sudo 用户扫描
@@ -123,19 +123,19 @@ go run ./cmd/bootstrapctl scan -i ./.configs/inventory.sudo.yaml -t 20s
 ### 普通 sudo 用户规划
 
 ```bash
-go run ./cmd/bootstrapctl plan -i ./.configs/inventory.sudo.yaml -p ./.configs/profile.yaml -t 20s
+go run ./cmd/bootstrapctl plan -i ./.configs/inventory.sudo.yaml --profile ./.configs/profile.yaml -t 20s
 ```
 
 ### 普通 sudo 用户执行
 
 ```bash
-go run ./cmd/bootstrapctl apply -i ./.configs/inventory.sudo.yaml -p ./.configs/profile.yaml -t 20s
+go run ./cmd/bootstrapctl apply -i ./.configs/inventory.sudo.yaml --profile ./.configs/profile.yaml -t 20s
 ```
 
 ### 普通 sudo 用户校验
 
 ```bash
-go run ./cmd/bootstrapctl verify -i ./.configs/inventory.sudo.yaml -p ./.configs/profile.yaml -t 20s
+go run ./cmd/bootstrapctl verify -i ./.configs/inventory.sudo.yaml --profile ./.configs/profile.yaml -t 20s
 ```
 
 ## 报告产物
