@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yuanyp8/bootstrapctl/internal/config"
+	"github.com/yuanyp8/bootstrapctl/internal/exporter"
 	"github.com/yuanyp8/bootstrapctl/internal/ui"
 )
 
@@ -109,6 +111,73 @@ func TestParseLifecycleFlagsRejectsInventoryAndInlineHostTogether(t *testing.T) 
 	_, ok := parseLifecycleFlags(ui.NewConsole(), "plan", []string{"-i", "inventory.yaml", "--host", "192.168.1.10"})
 	if ok {
 		t.Fatalf("expected file mode and inline mode conflict to fail")
+	}
+}
+
+func TestDefaultOpsEnvPath(t *testing.T) {
+	dir := t.TempDir()
+	inventoryPath := filepath.Join(dir, "inventory.yaml")
+	got := defaultOpsEnvPath(inventoryPath)
+	want := filepath.Clean("/etc/profile.d/ops-environment.sh")
+	if got != want {
+		t.Fatalf("unexpected default ops env path: got %q want %q", got, want)
+	}
+}
+
+func TestWriteOpsEnvCompatFileCreatesFile(t *testing.T) {
+	dir := t.TempDir()
+	outputPath := filepath.Join(dir, "ops-environment.sh")
+	inventory := config.Inventory{
+		ClusterName: "demo",
+		Nodes: []config.Node{
+			{Name: "node-01", Hostname: "node-01", IP: "192.168.1.10"},
+		},
+	}
+	inventory.ApplyDefaults()
+
+	changed, err := writeOpsEnvCompatFile(outputPath, inventory)
+	if err != nil {
+		t.Fatalf("writeOpsEnvCompatFile() error = %v", err)
+	}
+	if !changed {
+		t.Fatalf("expected first ops-environment sync to create the file")
+	}
+
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	want := exporter.RenderInventoryShell(inventory)
+	if string(content) != want {
+		t.Fatalf("unexpected ops-environment content:\n%s", string(content))
+	}
+}
+
+func TestWriteOpsEnvCompatFileIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	outputPath := filepath.Join(dir, "ops-environment.sh")
+	inventory := config.Inventory{
+		ClusterName: "demo",
+		Nodes: []config.Node{
+			{Name: "node-01", Hostname: "node-01", IP: "192.168.1.10"},
+		},
+	}
+	inventory.ApplyDefaults()
+
+	changed, err := writeOpsEnvCompatFile(outputPath, inventory)
+	if err != nil {
+		t.Fatalf("first writeOpsEnvCompatFile() error = %v", err)
+	}
+	if !changed {
+		t.Fatalf("expected first ops-environment sync to create the file")
+	}
+
+	changed, err = writeOpsEnvCompatFile(outputPath, inventory)
+	if err != nil {
+		t.Fatalf("second writeOpsEnvCompatFile() error = %v", err)
+	}
+	if changed {
+		t.Fatalf("expected second ops-environment sync to be idempotent")
 	}
 }
 

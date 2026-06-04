@@ -598,10 +598,7 @@ func writeOpsEnvCompatFile(outputPath string, inventory config.Inventory) (bool,
 }
 
 func defaultOpsEnvPath(inventoryPath string) string {
-	if strings.TrimSpace(inventoryPath) == "" {
-		return filepath.Join(".bootstrapctl", "ops-environment.sh")
-	}
-	return filepath.Join(filepath.Dir(inventoryPath), ".bootstrapctl", "ops-environment.sh")
+	return filepath.Clean("/etc/profile.d/ops-environment.sh")
 }
 
 func defaultInventoryCandidates(cwd string) []string {
@@ -649,7 +646,7 @@ func parseLifecycleFlags(console *ui.Console, command string, args []string) (li
 	options.SyncOpsEnv = true
 	fs.DurationVar(&options.Timeout, "timeout", 15*time.Second, "单个 SSH 任务超时时间")
 	fs.DurationVar(&options.Timeout, "t", 15*time.Second, "单个 SSH 任务超时时间（短参数）")
-	fs.BoolVar(&options.SyncOpsEnv, "sync-ops-env", true, "文件模式下自动同步 .bootstrapctl/ops-environment.sh；可设为 false 关闭")
+	fs.BoolVar(&options.SyncOpsEnv, "sync-ops-env", true, "文件模式下自动同步 /etc/profile.d/ops-environment.sh；可设为 false 关闭")
 	fs.BoolVar(&options.NoSyncOpsEnv, "no-sync-ops-env", false, "关闭 ops-environment.sh 自动同步")
 	registerInlineInventoryFlags(fs, &options.Inline)
 
@@ -697,7 +694,7 @@ func parseScanFlags(console *ui.Console, args []string) (scanOptions, bool) {
 	options.SyncOpsEnv = true
 	fs.DurationVar(&options.Timeout, "timeout", 15*time.Second, "单个 SSH 任务超时时间")
 	fs.DurationVar(&options.Timeout, "t", 15*time.Second, "单个 SSH 任务超时时间（短参数）")
-	fs.BoolVar(&options.SyncOpsEnv, "sync-ops-env", true, "文件模式下自动同步 .bootstrapctl/ops-environment.sh；可设为 false 关闭")
+	fs.BoolVar(&options.SyncOpsEnv, "sync-ops-env", true, "文件模式下自动同步 /etc/profile.d/ops-environment.sh；可设为 false 关闭")
 	fs.BoolVar(&options.NoSyncOpsEnv, "no-sync-ops-env", false, "关闭 ops-environment.sh 自动同步")
 	registerInlineInventoryFlags(fs, &options.Inline)
 
@@ -803,7 +800,7 @@ func parseDoctorFlags(console *ui.Console, args []string) (doctorOptions, bool) 
 	fs.StringVar(&options.ProfilePath, "P", "", "profile YAML 文件路径（高级短参数）")
 	fs.StringVar(&options.ProfilePath, "p", "", "profile YAML 文件路径（兼容旧短参数）")
 	options.SyncOpsEnv = true
-	fs.BoolVar(&options.SyncOpsEnv, "sync-ops-env", true, "自动同步 .bootstrapctl/ops-environment.sh；可设为 false 关闭")
+	fs.BoolVar(&options.SyncOpsEnv, "sync-ops-env", true, "自动同步 /etc/profile.d/ops-environment.sh；可设为 false 关闭")
 	fs.BoolVar(&options.NoSyncOpsEnv, "no-sync-ops-env", false, "关闭 ops-environment.sh 自动同步")
 
 	if err := fs.Parse(args); err != nil {
